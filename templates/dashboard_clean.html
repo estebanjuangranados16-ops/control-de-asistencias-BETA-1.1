@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCSHEK - Sistema de Asistencia</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            background: linear-gradient(to bottom right, #f8fafc, #e0f2fe, #f8fafc);
+            min-height: 100vh;
+        }
+        
+        /* Header Corporativo PCSHEK */
+        .header { 
+            background: linear-gradient(to right, #0f172a, #1e293b, #0f172a); 
+            color: white; 
+            height: 80px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .header-content { 
+            max-width: 1600px; 
+            margin: 0 auto; 
+            padding: 0 2rem;
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(to bottom right, #3b82f6, #2563eb);
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .brand-divider {
+            height: 48px;
+            border-left: 1px solid #475569;
+            padding-left: 1rem;
+        }
+        .brand-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.25rem;
+        }
+        .brand-tagline {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #10b981;
+            font-weight: 500;
+        }
+        .system-info {
+            height: 48px;
+            border-left: 1px solid #475569;
+            padding-left: 1rem;
+        }
+        .system-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 0.25rem;
+        }
+        .system-time {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-family: monospace;
+        }
+        
+        .status-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            backdrop-filter: blur(10px);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .status-connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .status-disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .status-monitoring {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .status-paused {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .container { max-width: 1600px; margin: 0 auto; padding: 2rem; }
+        .controls { 
+            display: flex; 
+            gap: 1rem; 
+            margin-bottom: 2rem; 
+            flex-wrap: wrap;
+            justify-content: center;
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .btn { 
+            padding: 0.75rem 1.5rem; 
+            border: none; 
+            border-radius: 0.75rem; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.875rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        .btn-primary { background: linear-gradient(to bottom right, #3b82f6, #2563eb); color: white; }
+        .btn-success { background: linear-gradient(to bottom right, #10b981, #059669); color: white; }
+        .btn-warning { background: linear-gradient(to bottom right, #f97316, #ea580c); color: white; }
+        .btn-info { background: linear-gradient(to bottom right, #6366f1, #4f46e5); color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        
+        .dashboard-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 1.5rem; 
+            margin-bottom: 2rem;
+        }
+        
+        .employee-status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card { 
+            background: white; 
+            padding: 1.5rem; 
+            border-radius: 0.75rem; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            border: 1px solid #f1f5f9;
+            transition: all 0.3s;
+        }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .card h3 { 
+            color: #0f172a; 
+            margin-bottom: 1rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.5rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        .stat-card { text-align: center; }
+        .stat-number { 
+            font-size: 3rem; 
+            font-weight: 700; 
+            background: linear-gradient(to bottom right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            font-family: monospace;
+        }
+        .stat-label { color: #64748b; font-size: 0.875rem; font-weight: 500; }
+        
+        .employee-list { max-height: 300px; overflow-y: auto; }
+        .employee-item { 
+            padding: 0.75rem; 
+            border-bottom: 1px solid #f1f5f9; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            transition: all 0.2s;
+            border-radius: 0.5rem;
+        }
+        .employee-item:hover { background: #f8fafc; }
+        .employee-item:last-child { border-bottom: none; }
+        .employee-name { font-weight: 600; font-size: 0.875rem; }
+        .employee-time { color: #64748b; font-size: 0.75rem; }
+        .status-inside { color: #10b981; }
+        .status-outside { color: #64748b; }
+        
+        .records-container { 
+            background: white; 
+            border-radius: 0.75rem; 
+            padding: 1.5rem; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            grid-column: 1 / -1;
+        }
+        .records-list { max-height: 400px; overflow-y: auto; }
+        .record-item { 
+            padding: 1rem; 
+            border-bottom: 1px solid #f1f5f9; 
+            transition: all 0.3s;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .record-item:hover { background: #f8fafc; }
+        .record-item.new-record { 
+            animation: highlight 3s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1);
+        }
+        
+        @keyframes highlight {
+            0% { background: linear-gradient(135deg, #dbeafe, #bfdbfe); transform: scale(1.02); }
+            100% { background: transparent; transform: scale(1); }
+        }
+        
+        .record-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 0.5rem;
+        }
+        .record-name { 
+            font-weight: 600; 
+            color: #0f172a; 
+            font-size: 0.875rem;
+        }
+        .record-event { 
+            padding: 0.25rem 0.75rem; 
+            border-radius: 9999px; 
+            font-size: 0.75rem; 
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .record-details { 
+            color: #64748b; 
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+            .employee-status-grid { grid-template-columns: 1fr; }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .employee-status-grid { grid-template-columns: 1fr; }
+            .container { padding: 1rem; }
+            .brand-title { font-size: 1.5rem; }
+            .header-content { flex-direction: column; gap: 1rem; padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Corporativo PCSHEK -->
+    <div class="header">
+        <div class="header-content">
+            <div class="brand-section">
+                <div class="logo-container">
+                    <div class="logo-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                            <path d="M3 21v-5h5"/>
+                        </svg>
+                    </div>
+                    <div class="brand-divider">
+                        <div class="brand-title">PCSHEK</div>
+                        <div class="brand-tagline">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                                <path d="M21 3v5h-5"/>
+                                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                                <path d="M3 21v-5h5"/>
+                            </svg>
+                            Reciclaje Inteligente
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="system-info">
+                    <div class="system-title">Sistema de Asistencia</div>
+                    <div class="system-time" id="currentDateTime"></div>
+                </div>
+            </div>
+            
+            <div class="status-section">
+                <div class="status-indicator status-connected" id="connectionIndicator">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                        <path d="M12 20h.01"/>
+                    </svg>
+                    <span id="connectionText">Conectado</span>
+                </div>
+                
+                <div class="status-indicator status-monitoring" id="monitoringIndicator">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5,3 19,12 5,21 5,3"/>
+                    </svg>
+                    <span id="monitoringText">Activo</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <button class="btn btn-primary" onclick="showAddEmployeeModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                Agregar Empleado
+            </button>
+            <button class="btn btn-success" onclick="syncEmployees()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                    <path d="M3 21v-5h5"/>
+                </svg>
+                Sincronizar
+            </button>
+            <button class="btn btn-warning" onclick="toggleMonitoring()" id="monitorBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+                Detener
+            </button>
+            <button class="btn btn-primary" onclick="testConnection()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                Probar Conexión
+            </button>
+            <a href="/employees" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Gestionar
+            </a>
+            <a href="/reports" class="btn btn-info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                Reportes
+            </a>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card stat-card">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #3b82f6;">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                    Registros Hoy
+                </h3>
+                <div class="stat-number" id="totalRecords">0</div>
+                <div class="stat-label">Total de marcajes</div>
+            </div>
+            
+            <div class="card stat-card">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #10b981;">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Empleados
+                </h3>
+                <div class="stat-number" id="uniqueEmployees">0</div>
+                <div class="stat-label">Activos hoy</div>
+            </div>
+            
+            <div class="card stat-card">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #f97316;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    Hora Actual
+                </h3>
+                <div class="stat-number" id="currentTime" style="font-size: 2rem;">--:--</div>
+                <div class="stat-label" id="currentDate">Cargando...</div>
+            </div>
+        </div>
+        
+        <div class="employee-status-grid">
+            <div class="card">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #10b981;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="9,12 12,15 22,4"/>
+                    </svg>
+                    Empleados Dentro (<span id="insideCount">0</span>)
+                </h3>
+                <div class="employee-list" id="employeesInside">
+                    <div class="employee-item">Cargando...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #64748b;">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16,17 21,12 16,7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Empleados Fuera (<span id="outsideCount">0</span>)
+                </h3>
+                <div class="employee-list" id="employeesOutside">
+                    <div class="employee-item">Cargando...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="records-container">
+            <h3 style="font-size: 1.25rem; margin-bottom: 1.5rem; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #6366f1;">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10,9 9,9 8,9"/>
+                </svg>
+                Registros en Tiempo Real
+            </h3>
+            <div class="records-list" id="recordsList">
+                <div class="record-item" style="text-align: center; color: #64748b; font-size: 0.875rem;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto 0.5rem; display: block; color: #94a3b8;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    Esperando registros de asistencia...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let isMonitoring = true;
+
+        socket.on('connect', function() {
+            console.log('Conectado al servidor');
+            loadDashboardData();
+        });
+
+        function loadDashboardData() {
+            fetch('/api/dashboard')
+                .then(response => response.json())
+                .then(data => updateDashboardWithData(data));
+        }
+
+        function updateDashboardWithData(data) {
+            document.getElementById('totalRecords').textContent = data.total_records;
+            document.getElementById('uniqueEmployees').textContent = data.unique_employees;
+            
+            updateConnectionStatus(data.connected);
+            updateMonitoringStatus(data.monitoring);
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionIndicator');
+            const text = document.getElementById('connectionText');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = 'Conectado';
+            } else {
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = 'Desconectado';
+            }
+        }
+
+        function updateMonitoringStatus(monitoring) {
+            const indicator = document.getElementById('monitoringIndicator');
+            const text = document.getElementById('monitoringText');
+            
+            if (monitoring) {
+                indicator.className = 'status-indicator status-monitoring';
+                text.textContent = 'Activo';
+            } else {
+                indicator.className = 'status-indicator status-paused';
+                text.textContent = 'Pausado';
+            }
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            };
+            const dateTimeStr = now.toLocaleDateString('es-ES', options);
+            document.getElementById('currentDateTime').textContent = dateTimeStr;
+            
+            const timeStr = now.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            const dateStr = now.toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'});
+            
+            const timeEl = document.getElementById('currentTime');
+            const dateEl = document.getElementById('currentDate');
+            
+            if (timeEl) timeEl.textContent = timeStr;
+            if (dateEl) dateEl.textContent = dateStr;
+        }
+
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+        setInterval(loadDashboardData, 30000);
+
+        function showAddEmployeeModal() { alert('Modal de empleado - implementar'); }
+        function syncEmployees() { alert('Sincronizar empleados - implementar'); }
+        function toggleMonitoring() { alert('Toggle monitoreo - implementar'); }
+        function testConnection() { alert('Probar conexión - implementar'); }
+    </script>
+</body>
+</html>

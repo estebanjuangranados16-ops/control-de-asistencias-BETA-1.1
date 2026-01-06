@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Empleados - PCSHEK</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #3b82f6;
+            --success-green: #10b981;
+            --warning-orange: #f97316;
+            --accent-purple: #8b5cf6;
+            --bg-dark: #1e293b;
+            --bg-darker: #0f172a;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #e0f2fe, #f8fafc);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+
+        .header-corporate {
+            background: linear-gradient(to right, var(--bg-darker), var(--bg-dark), var(--bg-darker));
+            height: 80px;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            gap: 1.5rem;
+        }
+
+        .logo-pcshek {
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary-blue), var(--success-green));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2rem;
+            padding: 0 1rem;
+            text-decoration: none;
+        }
+
+        .title-section h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .tagline {
+            color: var(--success-green);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 120px 2rem 2rem;
+        }
+
+        .page-header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .page-title h2 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .page-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+        }
+
+        .search-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .employees-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .employee-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .employee-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .employee-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .employee-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-blue), var(--success-green));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .employee-info h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .employee-id {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        .employee-details {
+            margin-bottom: 1rem;
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .detail-icon {
+            width: 16px;
+            color: var(--text-tertiary);
+        }
+
+        .employee-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-green), #059669);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-orange), #ea580c);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 25px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-inactive {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-tertiary);
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 100px 1rem 1rem;
+            }
+            
+            .page-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .search-bar {
+                flex-direction: column;
+            }
+            
+            .employees-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header-corporate">
+        <div class="header-content">
+            <a href="/" class="logo-pcshek">
+                <i class="fas fa-recycle"></i>
+                PCSHEK
+            </a>
+            <div class="separator" style="border-left: 1px solid #64748b; height: 40px; margin: 0 1rem;"></div>
+            <div class="title-section">
+                <h1>Gestión de Empleados</h1>
+                <div class="tagline">💚 Reciclaje Inteligente</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="main-container">
+        <!-- HEADER DE PÁGINA -->
+        <div class="page-header">
+            <div class="page-title">
+                <div class="page-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>
+                    <h2>Gestión de Empleados</h2>
+                    <p style="color: var(--text-tertiary); margin-top: 0.5rem;">
+                        Administra la información de todos los empleados del sistema
+                    </p>
+                </div>
+            </div>
+            <div>
+                <button class="btn btn-primary" onclick="window.location.href='/'">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al Dashboard
+                </button>
+            </div>
+        </div>
+
+        <!-- BARRA DE BÚSQUEDA -->
+        <div class="search-section">
+            <div class="search-bar">
+                <div style="position: relative; flex: 1;">
+                    <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-tertiary);"></i>
+                    <input type="text" class="search-input" placeholder="Buscar empleados por nombre, ID o departamento..." 
+                           style="padding-left: 3rem;" id="searchInput" onkeyup="filterEmployees()">
+                </div>
+                <button class="btn btn-success" onclick="addEmployee()">
+                    <i class="fas fa-user-plus"></i>
+                    Agregar Empleado
+                </button>
+                <button class="btn btn-primary" onclick="loadEmployees()">
+                    <i class="fas fa-sync-alt"></i>
+                    Actualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- GRID DE EMPLEADOS -->
+        <div class="employees-grid" id="employeesGrid">
+            <!-- Los empleados se cargarán aquí dinámicamente -->
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h3>Cargando empleados...</h3>
+                <p>Por favor espera mientras se cargan los datos</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allEmployees = [];
+
+        // Cargar empleados al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEmployees();
+        });
+
+        function loadEmployees() {
+            fetch('/api/employees')
+                .then(response => response.json())
+                .then(data => {
+                    allEmployees = data;
+                    displayEmployees(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showEmptyState('Error al cargar empleados');
+                });
+        }
+
+        function displayEmployees(employees) {
+            const grid = document.getElementById('employeesGrid');
+            
+            if (employees.length === 0) {
+                showEmptyState('No hay empleados registrados');
+                return;
+            }
+
+            grid.innerHTML = employees.map(emp => `
+                <div class="employee-card">
+                    <div class="status-badge ${emp.active ? 'badge-active' : 'badge-inactive'}">
+                        ${emp.active ? 'Activo' : 'Inactivo'}
+                    </div>
+                    
+                    <div class="employee-header">
+                        <div class="employee-avatar">
+                            ${emp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="employee-info">
+                            <h3>${emp.name}</h3>
+                            <div class="employee-id">ID: ${emp.employee_id}</div>
+                        </div>
+                    </div>
+
+                    <div class="employee-details">
+                        <div class="detail-row">
+                            <i class="fas fa-building detail-icon"></i>
+                            <span>${emp.department}</span>
+                        </div>
+                        <div class="detail-row">
+                            <i class="fas fa-clock detail-icon"></i>
+                            <span>Horario: ${emp.schedule}</span>
+                        </div>
+                        ${emp.phone ? `
+                        <div class="detail-row">
+                            <i class="fas fa-phone detail-icon"></i>
+                            <span>${emp.phone}</span>
+                        </div>
+                        ` : ''}
+                        ${emp.email ? `
+                        <div class="detail-row">
+                            <i class="fas fa-envelope detail-icon"></i>
+                            <span>${emp.email}</span>
+                        </div>
+                        ` : ''}
+                        <div class="detail-row">
+                            <i class="fas fa-calendar detail-icon"></i>
+                            <span>Creado: ${new Date(emp.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+
+                    <div class="employee-actions">
+                        <button class="btn btn-primary" onclick="editEmployee('${emp.employee_id}')">
+                            <i class="fas fa-edit"></i>
+                            Editar
+                        </button>
+                        <button class="btn ${emp.active ? 'btn-warning' : 'btn-success'}" 
+                                onclick="toggleEmployee('${emp.employee_id}', ${emp.active})">
+                            <i class="fas fa-${emp.active ? 'pause' : 'play'}"></i>
+                            ${emp.active ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteEmployee('${emp.employee_id}', '${emp.name}')">
+                            <i class="fas fa-trash"></i>
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showEmptyState(message) {
+            const grid = document.getElementById('employeesGrid');
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>${message}</h3>
+                    <p>No se encontraron empleados para mostrar</p>
+                </div>
+            `;
+        }
+
+        function filterEmployees() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allEmployees.filter(emp => 
+                emp.name.toLowerCase().includes(searchTerm) ||
+                emp.employee_id.toLowerCase().includes(searchTerm) ||
+                emp.department.toLowerCase().includes(searchTerm)
+            );
+            displayEmployees(filtered);
+        }
+
+        function addEmployee() {
+            const name = prompt('Nombre del empleado:');
+            if (!name) return;
+            
+            const id = prompt('ID del empleado:');
+            if (!id) return;
+            
+            const department = prompt('Departamento:', 'General');
+            
+            const employeeData = {
+                employee_id: id,
+                name: name,
+                department: department || 'General'
+            };
+
+            fetch('/api/employees', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(employeeData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Empleado agregado exitosamente');
+                    loadEmployees();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error al agregar empleado');
+            });
+        }
+
+        function editEmployee(employeeId) {
+            const employee = allEmployees.find(emp => emp.employee_id === employeeId);
+            if (!employee) return;
+
+            const name = prompt('Nombre:', employee.name);
+            if (name === null) return;
+
+            const department = prompt('Departamento:', employee.department);
+            if (department === null) return;
+
+            const phone = prompt('Teléfono:', employee.phone || '');
+            const email = prompt('Email:', employee.email || '');
+
+            const updatedData = {
+                name: name,
+                department: department,
+                phone: phone || '',
+                email: email || '',
+                active: employee.active
+            };
+
+            fetch(`/api/employees/${employeeId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Empleado actualizado exitosamente');
+                    loadEmployees();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error al actualizar empleado');
+            });
+        }
+
+        function toggleEmployee(employeeId, currentStatus) {
+            const action = currentStatus ? 'desactivar' : 'activar';
+            if (!confirm(`¿Estás seguro de ${action} este empleado?`)) return;
+
+            fetch(`/api/employees/${employeeId}/toggle`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    loadEmployees();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error al cambiar estado del empleado');
+            });
+        }
+
+        function deleteEmployee(employeeId, employeeName) {
+            if (!confirm(`¿Estás seguro de eliminar a ${employeeName}? Esta acción no se puede deshacer.`)) return;
+
+            fetch(`/api/employees/${employeeId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    loadEmployees();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error al eliminar empleado');
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Control de Asistencia PCSHEK - Versión Empresarial</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* ESQUEMA DE COLORES CORPORATIVO PCSHEK */
+        :root {
+            --primary-blue: #3b82f6;
+            --success-green: #10b981;
+            --warning-orange: #f97316;
+            --accent-purple: #8b5cf6;
+            --accent-indigo: #6366f1;
+            --bg-dark: #1e293b;
+            --bg-darker: #0f172a;
+            --bg-light: #f8fafc;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(to bottom right, #f8fafc, #e0f2fe, #f8fafc);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* HEADER EMPRESARIAL PCSHEK */
+        .header-corporate {
+            background: linear-gradient(to right, var(--bg-darker), var(--bg-dark), var(--bg-darker));
+            height: 80px;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            gap: 1.5rem;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-pcshek {
+            height: 72px;
+            width: auto;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-pcshek img {
+            height: 72px;
+            width: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo-text {
+            background: linear-gradient(135deg, var(--primary-blue), var(--success-green));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2rem;
+            padding: 0 1rem;
+            height: 72px;
+        }
+
+        .separator {
+            border-left: 1px solid #64748b;
+            height: 40px;
+            margin: 0 1rem;
+        }
+
+        .title-section h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .tagline {
+            color: var(--success-green);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .connection-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .connected { background: var(--success-green); }
+        .disconnected { background: var(--warning-orange); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* NAVEGACIÓN TABS */
+        .nav-tabs {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 0.5rem;
+            margin: 1.5rem 0;
+            display: flex;
+            gap: 0.25rem;
+            overflow-x: auto;
+        }
+
+        .nav-tab {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-tab.active {
+            background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .nav-tab:hover:not(.active) {
+            background: #f1f5f9;
+            color: var(--text-secondary);
+        }
+
+        /* CONTENEDOR PRINCIPAL */
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 120px 2rem 2rem;
+        }
+
+        /* BANNER CORPORATIVO CON RELOJ */
+        .corporate-banner {
+            background: linear-gradient(135deg, var(--bg-dark), var(--bg-darker));
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .corporate-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent);
+            border-radius: 50%;
+        }
+
+        .banner-content {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .company-info h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .company-tagline {
+            color: var(--success-green);
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .live-clock {
+            text-align: right;
+        }
+
+        .current-time {
+            font-size: 3rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .current-date {
+            font-size: 1.1rem;
+            color: #94a3b8;
+        }
+
+
+
+
+
+
+
+        .employees-status {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .employees-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .employee-list {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .employee-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .employee-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .employee-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .employee-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .employee-time {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 25px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-inside {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-outside {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        /* ACTIVIDAD RECIENTE */
+        .activity-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+        }
+
+        .activity-list {
+            max-height: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid transparent;
+        }
+
+        .activity-item.entrada {
+            border-left-color: var(--success-green);
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.05), transparent);
+        }
+
+        .activity-item.salida {
+            border-left-color: var(--accent-purple);
+            background: linear-gradient(90deg, rgba(139, 92, 246, 0.05), transparent);
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+        }
+
+        .activity-details {
+            flex: 1;
+        }
+
+        .activity-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .activity-meta {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 16px;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .form-control:invalid {
+            border-color: #ef4444;
+        }
+
+        .form-control:invalid:focus {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-green), #059669);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .realtime-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .banner-content {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .live-clock {
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 0 1rem;
+            }
+            
+            .logo-pcshek {
+                height: 50px;
+            }
+            
+            .logo-pcshek img {
+                height: 50px;
+            }
+            
+            .title-section h1 {
+                font-size: 1.25rem;
+            }
+            
+            .main-container {
+                padding: 100px 1rem 1rem;
+            }
+            
+            .current-time {
+                font-size: 2rem;
+            }
+            
+            .employees-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ANIMACIONES DESHABILITADAS */
+
+        /* NOTIFICACIONES */
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            color: white;
+            z-index: 3000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            font-weight: 600;
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        .notification.success {
+            background: linear-gradient(135deg, var(--success-green), #059669);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .notification.info {
+            background: linear-gradient(135deg, var(--primary-blue), #2563eb);
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* ESTILOS PARA TABLA DE REPORTES */
+        .present-row {
+            background-color: #f0f9ff !important;
+        }
+        
+        .absent-row {
+            background-color: #fef2f2 !important;
+        }
+        
+        .late-row {
+            background-color: #fffbeb !important;
+        }
+        
+        .status-presente {
+            background: #dcfce7;
+            color: #166534;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-ausente {
+            background: #fecaca;
+            color: #991b1b;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-sin-entrada,
+        .status-sin-salida {
+            background: #fed7aa;
+            color: #9a3412;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-no-laborable {
+            background: #e5e7eb;
+            color: #374151;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        /* ESTILOS PARA ALERTAS DE TARDANZA */
+        .late-alert {
+            border-left-width: 4px !important;
+        }
+        
+        .late-alert.mild {
+            border-left-color: #f59e0b !important;
+            background: rgba(245, 158, 11, 0.05) !important;
+        }
+        
+        .late-alert.moderate {
+            border-left-color: var(--warning-orange) !important;
+            background: rgba(249, 115, 22, 0.05) !important;
+        }
+        
+        .late-alert.severe {
+            border-left-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.05) !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER EMPRESARIAL PCSHEK -->
+    <header class="header-corporate">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo-pcshek">
+                    <img src="{{ url_for('static', filename='images/logo-pcshek.jpg') }}" alt="PCSHEK Logo">
+                </div>
+                <div class="separator"></div>
+                <div class="title-section">
+                    <h1>Dashboard Empresarial</h1>
+                    <div class="tagline">💚 Reciclaje Inteligente</div>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="connection-indicator">
+                    <div class="status-dot" id="headerConnectionDot"></div>
+                    <span id="headerConnectionText">Verificando...</span>
+                </div>
+                <button class="btn btn-primary" onclick="showInfoModal()">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="main-container">
+        <!-- NAVEGACIÓN TABS -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('dashboard')">
+                <i class="fas fa-chart-line"></i>
+                Dashboard
+            </button>
+            <button class="nav-tab" onclick="showTab('employees')">
+                <i class="fas fa-users"></i>
+                Empleados
+            </button>
+            <button class="nav-tab" onclick="showTab('records')">
+                <i class="fas fa-clipboard-list"></i>
+                Registros
+            </button>
+            <button class="nav-tab" onclick="showTab('reports')">
+                <i class="fas fa-chart-bar"></i>
+                Reportes
+            </button>
+            <button class="nav-tab" onclick="showTab('settings')">
+                <i class="fas fa-cog"></i>
+                Configuración
+            </button>
+        </div>
+
+        <!-- TAB: DASHBOARD -->
+        <div id="dashboard-tab" class="tab-content">
+            <!-- BANNER CORPORATIVO -->
+            <div class="corporate-banner">
+                <div class="banner-content">
+                    <div class="company-info">
+                        <h2>PCSHEK - Control de Asistencia</h2>
+                        <div class="company-tagline">Tecnología al servicio del reciclaje inteligente</div>
+                    </div>
+                    <div class="live-clock">
+                        <div class="current-time" id="liveTime">--:--:--</div>
+                        <div class="current-date" id="liveDate">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+            <!-- ESTADO EN TIEMPO REAL -->
+            <div class="employees-status">
+                <div class="chart-title">
+                    <i class="fas fa-users-cog" style="color: var(--primary-blue);"></i>
+                    Empleados en Tiempo Real
+                </div>
+                <div class="employees-grid">
+                    <div>
+                        <h4 style="color: var(--success-green); margin-bottom: 1rem;">
+                            <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
+                            Dentro (<span id="insideCount">0</span>)
+                        </h4>
+                        <div class="employee-list" id="employeesInsideList">
+                            <div class="employee-item">
+                                <div class="employee-info">
+                                    <div class="employee-avatar" style="background: var(--success-green);">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <div class="employee-name">Cargando...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 style="color: var(--text-tertiary); margin-bottom: 1rem;">
+                            <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
+                            Fuera (<span id="outsideCount">0</span>)
+                        </h4>
+                        <div class="employee-list" id="employeesOutsideList">
+                            <div class="employee-item">
+                                <div class="employee-info">
+                                    <div class="employee-avatar" style="background: var(--text-tertiary);">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <div class="employee-name">Cargando...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTIVIDAD RECIENTE -->
+            <div class="activity-section">
+                <div class="chart-title">
+                    <i class="fas fa-history" style="color: var(--accent-indigo);"></i>
+                    Actividad Reciente
+                    <div style="margin-left: auto;">
+                        <button class="btn btn-primary" onclick="showAddEmployeeModal()">
+                            <i class="fas fa-user-plus"></i>
+                            Agregar Empleado
+                        </button>
+                    </div>
+                </div>
+                <div class="activity-list" id="activityList">
+                    <div class="activity-item">
+                        <div class="activity-icon" style="background: var(--primary-blue);">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-name">Esperando registros de asistencia...</div>
+                            <div class="activity-meta">El sistema está listo para recibir eventos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ALERTAS DE TARDANZAS -->
+            <div class="activity-section" style="margin-top: 1.5rem;">
+                <div class="chart-title">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--warning-orange);"></i>
+                    Alertas de Tardanzas Hoy
+                    <div style="margin-left: auto;">
+                        <button class="btn btn-warning" onclick="loadLateAlerts()" style="background: var(--warning-orange);">
+                            <i class="fas fa-sync-alt"></i>
+                            Actualizar
+                        </button>
+                    </div>
+                </div>
+                <div class="activity-list" id="lateAlertsList">
+                    <div class="activity-item">
+                        <div class="activity-icon" style="background: var(--success-green);">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-name">Sin tardanzas registradas</div>
+                            <div class="activity-meta">Todos los empleados llegaron a tiempo</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OTROS TABS -->
+        <div id="employees-tab" class="tab-content" style="display: none;">
+            <iframe src="/employees/simple" style="width: 100%; height: 75vh; border: none; border-radius: 12px; background: white;"></iframe>
+        </div>
+
+        <div id="records-tab" class="tab-content" style="display: none;">
+            <div class="activity-section">
+                <div class="chart-title">
+                    <i class="fas fa-clipboard-list"></i>
+                    Registros de Asistencia
+                    <div style="margin-left: auto;">
+                        <input type="date" id="recordsDate" class="form-control" style="width: auto; display: inline-block;">
+                        <button class="btn btn-primary" onclick="loadRecords()">
+                            <i class="fas fa-search"></i>
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+                <div id="recordsList" style="max-height: 600px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 2rem; color: #64748b;">
+                        Selecciona una fecha para ver los registros
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="reports-tab" class="tab-content" style="display: none;">
+            <div class="activity-section">
+                <div class="chart-title">
+                    <i class="fas fa-chart-bar"></i>
+                    Reportes y Exportación
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+                    <!-- Exportar por Rango de Fechas -->
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-calendar-alt" style="color: var(--primary-blue);"></i>
+                            Exportar por Fechas
+                        </h4>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Inicio:</label>
+                            <input type="date" id="exportStartDate" class="form-control" style="margin-bottom: 0.75rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Fin:</label>
+                            <input type="date" id="exportEndDate" class="form-control">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewReport()" style="flex: 1;">
+                                <i class="fas fa-eye"></i>
+                                Ver Reporte
+                            </button>
+                            <button class="btn btn-success" onclick="exportToExcel()" style="flex: 1;">
+                                <i class="fas fa-file-excel"></i>
+                                Excel
+                            </button>
+                            <button class="btn btn-danger" onclick="exportToPDF()" style="flex: 1;">
+                                <i class="fas fa-file-pdf"></i>
+                                PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Exportar por Empleado -->
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-user" style="color: var(--success-green);"></i>
+                            Exportar por Empleado
+                        </h4>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Empleado:</label>
+                            <select id="exportEmployee" class="form-control" style="margin-bottom: 0.75rem;">
+                                <option value="">Todos los empleados</option>
+                            </select>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Inicio:</label>
+                            <input type="date" id="exportEmpStartDate" class="form-control" style="margin-bottom: 0.75rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Fin:</label>
+                            <input type="date" id="exportEmpEndDate" class="form-control">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewEmployeeReport()" style="flex: 1;">
+                                <i class="fas fa-eye"></i>
+                                Ver Reporte
+                            </button>
+                            <button class="btn btn-success" onclick="exportEmployeeToExcel()" style="flex: 1;">
+                                <i class="fas fa-file-excel"></i>
+                                Excel
+                            </button>
+                            <button class="btn btn-danger" onclick="exportEmployeeToPDF()" style="flex: 1;">
+                                <i class="fas fa-file-pdf"></i>
+                                PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Exportar por Departamento -->
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-building" style="color: var(--warning-orange);"></i>
+                            Exportar por Departamento
+                        </h4>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Departamento:</label>
+                            <select id="exportDepartment" class="form-control" style="margin-bottom: 0.75rem;">
+                                <option value="">Todos los departamentos</option>
+                                <option value="General">General</option>
+                                <option value="Reacondicionamiento">Reacondicionamiento</option>
+                                <option value="Ventas">Ventas</option>
+                                <option value="Administración">Administración</option>
+                                <option value="Logística">Logística</option>
+                                <option value="Calidad">Control de Calidad</option>
+                            </select>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Inicio:</label>
+                            <input type="date" id="exportDeptStartDate" class="form-control" style="margin-bottom: 0.75rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fecha Fin:</label>
+                            <input type="date" id="exportDeptEndDate" class="form-control">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewDepartmentReport()" style="flex: 1;">
+                                <i class="fas fa-eye"></i>
+                                Ver Reporte
+                            </button>
+                            <button class="btn btn-success" onclick="exportDepartmentToExcel()" style="flex: 1;">
+                                <i class="fas fa-file-excel"></i>
+                                Excel
+                            </button>
+                            <button class="btn btn-danger" onclick="exportDepartmentToPDF()" style="flex: 1;">
+                                <i class="fas fa-file-pdf"></i>
+                                PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Información de Horarios -->
+                <div style="background: linear-gradient(135deg, var(--bg-dark), var(--bg-darker)); color: white; padding: 1.5rem; border-radius: 12px; margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-clock" style="color: var(--success-green);"></i>
+                        Horarios de Trabajo
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <div>
+                            <strong>Reacondicionamiento:</strong><br>
+                            Lunes a Jueves: 7:00 AM - 5:00 PM<br>
+                            Viernes: 7:00 AM - 4:00 PM
+                        </div>
+                        <div>
+                            <strong>Estándar:</strong><br>
+                            Lunes a Viernes: 8:00 AM - 5:00 PM
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Vista Previa del Reporte -->
+                <div id="reportPreview" style="display: none; margin-top: 2rem;">
+                    <div style="background: white; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-table" style="color: var(--primary-blue);"></i>
+                                Vista Previa del Reporte
+                            </h4>
+                            <button class="btn btn-primary" onclick="hideReportPreview()">
+                                <i class="fas fa-times"></i>
+                                Cerrar
+                            </button>
+                        </div>
+                        <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                            <table id="reportTable" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead style="background: var(--bg-dark); color: white; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Empleado</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Departamento</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Fecha</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Día</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Horario</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Entrada</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Salida</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Horas</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Estado</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportTableBody">
+                                    <!-- Datos se cargarán aquí -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings-tab" class="tab-content" style="display: none;">
+            <div class="activity-section">
+                <div class="chart-title">
+                    <i class="fas fa-cog"></i>
+                    Configuración del Sistema
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem;">Conexión Dispositivo</h4>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>IP:</strong> <span id="deviceIP">172.10.1.62</span>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>Estado:</strong> <span id="deviceStatus">Verificando...</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="testConnection()">
+                            <i class="fas fa-wifi"></i>
+                            Probar Conexión
+                        </button>
+                        <button class="btn btn-success" onclick="startMonitoring()" style="margin-left: 0.5rem;">
+                            <i class="fas fa-play"></i>
+                            Iniciar Monitoreo
+                        </button>
+                    </div>
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem;">Base de Datos</h4>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>Tipo:</strong> PostgreSQL (Supabase)
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>Estado:</strong> <span style="color: #10b981;">Conectado</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="backupDatabase()">
+                            <i class="fas fa-download"></i>
+                            Respaldar Datos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL AGREGAR EMPLEADO MEJORADO -->
+    <div class="modal" id="addEmployeeModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
+                <h3 style="color: var(--text-primary); display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary-blue), var(--success-green)); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-user-plus" style="color: white;"></i>
+                    </div>
+                    Agregar Nuevo Empleado
+                </h3>
+                <button type="button" onclick="closeModal()" style="background: none; border: none; font-size: 1.5rem; color: var(--text-tertiary); cursor: pointer; padding: 0.5rem;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="addEmployeeForm">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-id-badge" style="margin-right: 0.5rem; color: var(--primary-blue);"></i>
+                            ID del Empleado *
+                        </label>
+                        <input type="text" class="form-control" id="employeeId" required placeholder="Ej: EMP001">
+                        <small style="color: var(--text-tertiary); font-size: 0.8rem;">Identificador único del empleado</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-user" style="margin-right: 0.5rem; color: var(--success-green);"></i>
+                            Nombre Completo *
+                        </label>
+                        <input type="text" class="form-control" id="employeeName" required placeholder="Nombre y apellidos">
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-building" style="margin-right: 0.5rem; color: var(--accent-purple);"></i>
+                            Departamento
+                        </label>
+                        <select class="form-control" id="employeeDept">
+                            <option value="General">General</option>
+                            <option value="Reacondicionamiento">Reacondicionamiento</option>
+                            <option value="Ventas">Ventas</option>
+                            <option value="Administración">Administración</option>
+                            <option value="Logística">Logística</option>
+                            <option value="Calidad">Control de Calidad</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-clock" style="margin-right: 0.5rem; color: var(--warning-orange);"></i>
+                            Horario
+                        </label>
+                        <select class="form-control" id="employeeSchedule">
+                            <option value="estandar">Estándar (8:00 - 17:00)</option>
+                            <option value="matutino">Matutino (6:00 - 14:00)</option>
+                            <option value="vespertino">Vespertino (14:00 - 22:00)</option>
+                            <option value="nocturno">Nocturno (22:00 - 6:00)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-phone" style="margin-right: 0.5rem; color: var(--success-green);"></i>
+                            Teléfono
+                        </label>
+                        <input type="tel" class="form-control" id="employeePhone" placeholder="+57 300 123 4567">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-envelope" style="margin-right: 0.5rem; color: var(--primary-blue);"></i>
+                            Email
+                        </label>
+                        <input type="email" class="form-control" id="employeeEmail" placeholder="empleado@pcshek.com">
+                    </div>
+                </div>
+                
+                <div class="modal-actions" style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                    <button type="button" class="btn" onclick="closeModal()" style="background: #f1f5f9; color: var(--text-secondary); border: 1px solid #e2e8f0;">
+                        <i class="fas fa-times"></i>
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-success" style="min-width: 140px;">
+                        <i class="fas fa-check"></i>
+                        Agregar Empleado
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        const socket = io();
+
+        // Conectar WebSocket
+        socket.on('connect', function() {
+            console.log('Conectado al servidor PCSHEK');
+            loadDashboardData();
+        });
+
+        // Escuchar eventos en tiempo real
+        socket.on('attendance_record', function(data) {
+            addNewActivity(data);
+            loadDashboardData();
+            loadLateAlerts();
+        });
+
+        socket.on('dashboard_update', function(data) {
+            updateDashboardData(data);
+        });
+        
+        socket.on('late_arrival_alert', function(data) {
+            showLateArrivalNotification(data);
+            loadLateAlerts();
+        });
+
+        // Funciones principales
+        function loadDashboardData() {
+            fetch('/api/dashboard')
+                .then(response => response.json())
+                .then(data => updateDashboardData(data))
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateDashboardData(data) {
+            // Solo actualizar elementos que existen
+            const insideCountEl = document.getElementById('insideCount');
+            const outsideCountEl = document.getElementById('outsideCount');
+            
+            if (insideCountEl) insideCountEl.textContent = data.employees_inside.length;
+            if (outsideCountEl) outsideCountEl.textContent = data.employees_outside.length;
+
+            // Actualizar estado de conexión
+            updateConnectionStatus(data.connected);
+
+            // Actualizar listas de empleados
+            updateEmployeeLists(data.employees_inside, data.employees_outside);
+
+            // Actualizar gráficos
+            updateCharts(data);
+        }
+
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('headerConnectionDot');
+            const text = document.getElementById('headerConnectionText');
+            
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = 'Dispositivo Conectado';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'Dispositivo Desconectado';
+            }
+        }
+
+        function updateEmployeeLists(inside, outside) {
+            const insideList = document.getElementById('employeesInsideList');
+            const outsideList = document.getElementById('employeesOutsideList');
+
+            // Lista de empleados dentro
+            if (inside.length === 0) {
+                insideList.innerHTML = `
+                    <div class="employee-item">
+                        <div class="employee-info">
+                            <div class="employee-avatar" style="background: var(--text-tertiary);">
+                                <i class="fas fa-home"></i>
+                            </div>
+                            <div>
+                                <div class="employee-name">Todos fuera</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                insideList.innerHTML = inside.map(emp => `
+                    <div class="employee-item">
+                        <div class="employee-info">
+                            <div class="employee-avatar" style="background: var(--success-green);">
+                                ${emp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div class="employee-name">${emp.name}</div>
+                                <div class="employee-time">${emp.time ? new Date(emp.time).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : ''}</div>
+                            </div>
+                        </div>
+                        <div class="status-badge badge-inside">Dentro</div>
+                    </div>
+                `).join('');
+            }
+
+            // Lista de empleados fuera
+            if (outside.length === 0) {
+                outsideList.innerHTML = `
+                    <div class="employee-item">
+                        <div class="employee-info">
+                            <div class="employee-avatar" style="background: var(--success-green);">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <div>
+                                <div class="employee-name">Todos dentro</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                outsideList.innerHTML = outside.map(emp => `
+                    <div class="employee-item">
+                        <div class="employee-info">
+                            <div class="employee-avatar" style="background: var(--text-tertiary);">
+                                ${emp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div class="employee-name">${emp.name}</div>
+                                <div class="employee-time">${emp.time ? new Date(emp.time).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : 'Sin registro'}</div>
+                            </div>
+                        </div>
+                        <div class="status-badge badge-outside">Fuera</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function addNewActivity(data) {
+            const activityList = document.getElementById('activityList');
+            
+            const newActivity = document.createElement('div');
+            newActivity.className = `activity-item ${data.event_type}`;
+            
+            const iconColor = data.event_type === 'entrada' ? 'var(--success-green)' : 'var(--accent-purple)';
+            const iconName = data.event_type === 'entrada' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
+            
+            newActivity.innerHTML = `
+                <div class="activity-icon" style="background: ${iconColor};">
+                    <i class="fas ${iconName}"></i>
+                </div>
+                <div class="activity-details">
+                    <div class="activity-name">${data.name} - ${data.event_type.toUpperCase()}</div>
+                    <div class="activity-meta">
+                        ${new Date(data.timestamp).toLocaleString()} | ${data.verify_method} | ${data.department}
+                    </div>
+                </div>
+            `;
+            
+            activityList.insertBefore(newActivity, activityList.firstChild);
+            
+            // Mantener solo los últimos 10 registros
+            while (activityList.children.length > 10) {
+                activityList.removeChild(activityList.lastChild);
+            }
+
+            // Mostrar notificación
+            showNotification(`${data.name} - ${data.event_type.toUpperCase()}`, 'info');
+        }
+
+        function updateCharts(data) {
+            // Solo actualizar listas de empleados
+        }
+
+
+
+
+
+        // Funciones de UI
+        function showTab(tabName) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // Remover clase active de todos los botones
+            document.querySelectorAll('.nav-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mostrar tab seleccionado
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            
+            // Activar botón correspondiente
+            event.target.classList.add('active');
+        }
+
+        function showAddEmployeeModal() {
+            document.getElementById('addEmployeeModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('addEmployeeModal').style.display = 'none';
+            document.getElementById('addEmployeeForm').reset();
+        }
+
+        function showNotification(message, type) {
+            // Remover notificaciones existentes
+            document.querySelectorAll('.notification').forEach(notif => {
+                notif.remove();
+            });
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    notification.remove();
+                }
+            }, 4000);
+        }
+
+        function showInfoModal() {
+            showNotification('Sistema PCSHEK - Versión Empresarial v2.0', 'info');
+        }
+
+        // Reloj en tiempo real
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            const dateStr = now.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            document.getElementById('liveTime').textContent = timeStr;
+            document.getElementById('liveDate').textContent = dateStr;
+        }
+
+        // Formulario agregar empleado
+        document.getElementById('addEmployeeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validación mejorada
+            const employeeId = document.getElementById('employeeId').value.trim();
+            const employeeName = document.getElementById('employeeName').value.trim();
+            
+            if (!employeeId || !employeeName) {
+                alert('Por favor completa los campos obligatorios (ID y Nombre)');
+                return;
+            }
+            
+            // Validar formato de ID
+            if (employeeId.length < 2) {
+                alert('El ID del empleado debe tener al menos 2 caracteres');
+                return;
+            }
+            
+            const formData = {
+                employee_id: employeeId,
+                name: employeeName,
+                department: document.getElementById('employeeDept').value,
+                schedule: document.getElementById('employeeSchedule').value,
+                phone: document.getElementById('employeePhone').value.trim(),
+                email: document.getElementById('employeeEmail').value.trim()
+            };
+            
+            // Validar email si se proporciona
+            if (formData.email && !isValidEmail(formData.email)) {
+                alert('Por favor ingresa un email válido');
+                return;
+            }
+            
+            // Deshabilitar botón durante envío
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Agregando...';
+            
+            fetch('/api/employees', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Empleado agregado exitosamente', 'success');
+                    closeModal();
+                    loadDashboardData();
+                } else {
+                    showNotification('Error: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Error de conexión al agregar empleado', 'error');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+        });
+        
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        // Cerrar modal al hacer clic fuera
+        window.onclick = function(event) {
+            const modal = document.getElementById('addEmployeeModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Inicialización
+        updateClock();
+        setInterval(updateClock, 1000);
+        setInterval(loadDashboardData, 30000);
+        
+        // Cargar datos iniciales
+        setTimeout(() => {
+            loadDashboardData();
+            loadLateAlerts();
+        }, 1000);
+        
+        function loadLateAlerts() {
+            fetch('/api/alerts/late')
+                .then(response => response.json())
+                .then(data => {
+                    updateLateAlerts(data);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        function updateLateAlerts(alerts) {
+            const alertsList = document.getElementById('lateAlertsList');
+            
+            if (!alerts || alerts.length === 0) {
+                alertsList.innerHTML = `
+                    <div class="activity-item">
+                        <div class="activity-icon" style="background: var(--success-green);">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-name">Sin tardanzas registradas</div>
+                            <div class="activity-meta">Todos los empleados llegaron a tiempo hoy</div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            alertsList.innerHTML = alerts.map(alert => {
+                const severity = alert.late_minutes > 30 ? 'severe' : alert.late_minutes > 15 ? 'moderate' : 'mild';
+                const iconColor = severity === 'severe' ? '#ef4444' : severity === 'moderate' ? 'var(--warning-orange)' : '#f59e0b';
+                const icon = severity === 'severe' ? 'fa-exclamation-circle' : 'fa-clock';
+                
+                return `
+                    <div class="activity-item late-alert ${severity}">
+                        <div class="activity-icon" style="background: ${iconColor};">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-name">${alert.name} - TARDANZA</div>
+                            <div class="activity-meta">
+                                Esperado: ${alert.expected_time} | Llegó: ${alert.actual_time} | 
+                                <strong style="color: ${iconColor};">${alert.late_minutes} min tarde</strong> | 
+                                ${alert.department}
+                            </div>
+                        </div>
+                        <div style="margin-left: auto; display: flex; align-items: center;">
+                            <span style="
+                                background: ${iconColor}; color: white; padding: 0.25rem 0.5rem;
+                                border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+                            ">
+                                ${alert.late_minutes} min
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function showLateArrivalNotification(data) {
+            const color = data.severity === 'severe' ? '#ef4444' : data.severity === 'moderate' ? 'var(--warning-orange)' : '#f59e0b';
+            
+            showNotification(
+                `⚠️ ${data.name} llegó ${data.late_minutes} minutos tarde (${data.actual_time})`,
+                'error'
+            );
+            
+            // Reproducir sonido de alerta (opcional)
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
+                audio.volume = 0.3;
+                audio.play().catch(() => {});
+            } catch (e) {}
+        }
+
+        // Funciones para las nuevas vistas
+        function loadRecords() {
+            const date = document.getElementById('recordsDate').value;
+            if (!date) {
+                alert('Selecciona una fecha');
+                return;
+            }
+            
+            fetch(`/api/records?date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    const recordsList = document.getElementById('recordsList');
+                    if (data.length === 0) {
+                        recordsList.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">No hay registros para esta fecha</div>';
+                        return;
+                    }
+                    
+                    recordsList.innerHTML = data.map(record => `
+                        <div class="activity-item ${record.event_type}">
+                            <div class="activity-icon" style="background: ${record.event_type === 'entrada' ? '#10b981' : '#8b5cf6'};">
+                                <i class="fas ${record.event_type === 'entrada' ? 'fa-sign-in-alt' : 'fa-sign-out-alt'}"></i>
+                            </div>
+                            <div class="activity-details">
+                                <div class="activity-name">${record.name} - ${record.event_type.toUpperCase()}</div>
+                                <div class="activity-meta">
+                                    ${new Date(record.timestamp).toLocaleString()} | ${record.verify_method} | ${record.department}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function generateDailyReport() {
+            const date = document.getElementById('reportDate').value;
+            if (!date) {
+                alert('Selecciona una fecha');
+                return;
+            }
+            
+            fetch(`/api/reports/daily?date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    const results = document.getElementById('reportResults');
+                    results.innerHTML = `
+                        <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <h4>Reporte Diario - ${date}</h4>
+                            <div style="margin-top: 1rem;">
+                                <strong>Total de registros:</strong> ${data.total_records}<br>
+                                <strong>Empleados únicos:</strong> ${data.unique_employees}<br>
+                                <strong>Entradas:</strong> ${data.entries}<br>
+                                <strong>Salidas:</strong> ${data.exits}
+                            </div>
+                            <div style="margin-top: 1rem; max-height: 400px; overflow-y: auto;">
+                                ${data.records.map(record => `
+                                    <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb;">
+                                        <strong>${record.name}</strong> - ${record.event_type.toUpperCase()} - ${new Date(record.timestamp).toLocaleTimeString()}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function generateWeeklyReport() {
+            const week = document.getElementById('reportWeek').value;
+            if (!week) {
+                alert('Selecciona una semana');
+                return;
+            }
+            
+            fetch(`/api/reports/weekly?week=${week}`)
+                .then(response => response.json())
+                .then(data => {
+                    const results = document.getElementById('reportResults');
+                    results.innerHTML = `
+                        <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <h4>Reporte Semanal - Semana ${week}</h4>
+                            <div style="margin-top: 1rem;">
+                                <strong>Total de registros:</strong> ${data.total_records}<br>
+                                <strong>Empleados activos:</strong> ${data.active_employees}<br>
+                                <strong>Promedio diario:</strong> ${Math.round(data.total_records / 7)} registros
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function testConnection() {
+            fetch('/api/test_connection', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('deviceStatus').textContent = data.connected ? 'Conectado' : 'Desconectado';
+                    document.getElementById('deviceStatus').style.color = data.connected ? '#10b981' : '#ef4444';
+                    alert(data.message);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function startMonitoring() {
+            fetch('/api/start_monitoring', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function backupDatabase() {
+            alert('Función de respaldo en desarrollo');
+        }
+
+        // Establecer fecha actual por defecto
+        document.getElementById('recordsDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
+        
+        // Establecer fechas por defecto para exportación
+        const today = new Date().toISOString().split('T')[0];
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        document.getElementById('exportStartDate').value = weekAgo;
+        document.getElementById('exportEndDate').value = today;
+        document.getElementById('exportEmpStartDate').value = weekAgo;
+        document.getElementById('exportEmpEndDate').value = today;
+        document.getElementById('exportDeptStartDate').value = weekAgo;
+        document.getElementById('exportDeptEndDate').value = today;
+        
+        // Cargar empleados para el selector
+        loadEmployeesForExport();
+        
+        function loadEmployeesForExport() {
+            fetch('/api/employees')
+                .then(response => response.json())
+                .then(employees => {
+                    const select = document.getElementById('exportEmployee');
+                    select.innerHTML = '<option value="">Todos los empleados</option>';
+                    employees.forEach(emp => {
+                        select.innerHTML += `<option value="${emp.employee_id}">${emp.name}</option>`;
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        // Funciones de exportación
+        function viewReport() {
+            const startDate = document.getElementById('exportStartDate').value;
+            const endDate = document.getElementById('exportEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            loadReportData(startDate, endDate);
+        }
+        
+        function viewEmployeeReport() {
+            const employeeId = document.getElementById('exportEmployee').value;
+            const startDate = document.getElementById('exportEmpStartDate').value;
+            const endDate = document.getElementById('exportEmpEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            loadReportData(startDate, endDate, employeeId);
+        }
+        
+        function viewDepartmentReport() {
+            const department = document.getElementById('exportDepartment').value;
+            const startDate = document.getElementById('exportDeptStartDate').value;
+            const endDate = document.getElementById('exportDeptEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            loadReportData(startDate, endDate, null, department);
+        }
+        
+        function loadReportData(startDate, endDate, employeeId = null, department = null) {
+            let url = `/api/reports/attendance?start_date=${startDate}&end_date=${endDate}`;
+            if (employeeId) url += `&employee_id=${employeeId}`;
+            if (department) url += `&department=${encodeURIComponent(department)}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    displayReportTable(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al cargar el reporte');
+                });
+        }
+        
+        function displayReportTable(reportData) {
+            const tbody = document.getElementById('reportTableBody');
+            tbody.innerHTML = '';
+            
+            let totalRows = 0;
+            
+            for (const empId in reportData) {
+                const empData = reportData[empId];
+                
+                for (const dateStr in empData.days) {
+                    const dayData = empData.days[dateStr];
+                    const row = document.createElement('tr');
+                    
+                    // Determinar color de fila
+                    let rowClass = '';
+                    if (dayData.status === 'Presente') {
+                        rowClass = dayData.late ? 'late-row' : 'present-row';
+                    } else if (dayData.status === 'Ausente') {
+                        rowClass = 'absent-row';
+                    }
+                    
+                    row.className = rowClass;
+                    
+                    // Observaciones
+                    let observations = [];
+                    if (dayData.late) {
+                        const lateText = dayData.late_minutes ? `Tardó ${dayData.late_minutes} min` : 'Tardó';
+                        observations.push(lateText);
+                    }
+                    if (dayData.early_exit) {
+                        const earlyText = dayData.early_minutes ? `Salió ${dayData.early_minutes} min temprano` : 'Salió temprano';
+                        observations.push(earlyText);
+                    }
+                    
+                    row.innerHTML = `
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${empData.name}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${empData.department}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${dayData.date}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${dayData.day_name}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            ${dayData.expected_hours ? `${dayData.expected_hours[0]} - ${dayData.expected_hours[1]}` : 'No laborable'}
+                        </td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${dayData.entrada || '-'}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${dayData.salida || '-'}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${dayData.hours_worked}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">
+                            <span class="status-${dayData.status.toLowerCase().replace(' ', '-')}">${dayData.status}</span>
+                        </td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${observations.join(', ')}</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                    totalRows++;
+                }
+            }
+            
+            // Mostrar el reporte
+            document.getElementById('reportPreview').style.display = 'block';
+            document.getElementById('reportPreview').scrollIntoView({ behavior: 'smooth' });
+            
+            // Mostrar estadísticas
+            console.log(`Reporte generado: ${totalRows} registros`);
+        }
+        
+        function hideReportPreview() {
+            document.getElementById('reportPreview').style.display = 'none';
+        }
+        function exportToExcel() {
+            const startDate = document.getElementById('exportStartDate').value;
+            const endDate = document.getElementById('exportEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            const url = `/api/export/excel?start_date=${startDate}&end_date=${endDate}`;
+            window.open(url, '_blank');
+        }
+        
+        function exportToPDF() {
+            const startDate = document.getElementById('exportStartDate').value;
+            const endDate = document.getElementById('exportEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            const url = `/api/export/pdf?start_date=${startDate}&end_date=${endDate}`;
+            window.open(url, '_blank');
+        }
+        
+        function exportEmployeeToExcel() {
+            const employeeId = document.getElementById('exportEmployee').value;
+            const startDate = document.getElementById('exportEmpStartDate').value;
+            const endDate = document.getElementById('exportEmpEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            let url = `/api/export/excel?start_date=${startDate}&end_date=${endDate}`;
+            if (employeeId) {
+                url += `&employee_id=${employeeId}`;
+            }
+            
+            window.open(url, '_blank');
+        }
+        
+        function exportEmployeeToPDF() {
+            const employeeId = document.getElementById('exportEmployee').value;
+            const startDate = document.getElementById('exportEmpStartDate').value;
+            const endDate = document.getElementById('exportEmpEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            let url = `/api/export/pdf?start_date=${startDate}&end_date=${endDate}`;
+            if (employeeId) {
+                url += `&employee_id=${employeeId}`;
+            }
+            
+            window.open(url, '_blank');
+        }
+        
+        function exportDepartmentToExcel() {
+            const department = document.getElementById('exportDepartment').value;
+            const startDate = document.getElementById('exportDeptStartDate').value;
+            const endDate = document.getElementById('exportDeptEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            let url = `/api/export/excel?start_date=${startDate}&end_date=${endDate}`;
+            if (department) {
+                url += `&department=${encodeURIComponent(department)}`;
+            }
+            
+            window.open(url, '_blank');
+        }
+        
+        function exportDepartmentToPDF() {
+            const department = document.getElementById('exportDepartment').value;
+            const startDate = document.getElementById('exportDeptStartDate').value;
+            const endDate = document.getElementById('exportDeptEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Por favor selecciona las fechas');
+                return;
+            }
+            
+            let url = `/api/export/pdf?start_date=${startDate}&end_date=${endDate}`;
+            if (department) {
+                url += `&department=${encodeURIComponent(department)}`;
+            }
+            
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>
