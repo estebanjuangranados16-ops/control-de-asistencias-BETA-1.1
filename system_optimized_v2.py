@@ -9,7 +9,7 @@ import requests
 from requests.auth import HTTPDigestAuth
 import json
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 import time as time_module
 import os
 from dotenv import load_dotenv
@@ -75,14 +75,14 @@ class OptimizedAttendanceSystem:
             import psycopg2
             self.db_type = 'postgresql'
             self.get_connection = lambda: psycopg2.connect(self.database_url)
-            print("✅ Configurado para PostgreSQL")
+            print("Configurado para PostgreSQL")
         else:
             # Fallback a SQLite
             import sqlite3
             self.db_type = 'sqlite'
             self.db_path = 'attendance.db'
             self.get_connection = lambda: sqlite3.connect(self.db_path)
-            print("⚠️ Usando SQLite como fallback")
+            print("Usando SQLite como fallback")
         
         self.init_database()
         
@@ -197,27 +197,6 @@ class OptimizedAttendanceSystem:
                     )
                 ''')
                 
-                # Insertar datos iniciales para breaks y horarios
-                cursor.execute('''
-                    INSERT INTO break_types (name, display_name, duration_minutes, mandatory) VALUES
-                    ('admin_break', 'Break Administrativo', 20, TRUE),
-                    ('operativo_break', 'Break Operativo', 20, TRUE),
-                    ('almuerzo_12', 'Almuerzo 12:00-13:00', 60, TRUE),
-                    ('almuerzo_13', 'Almuerzo 13:00-14:00', 60, TRUE)
-                    ON CONFLICT DO NOTHING
-                ''')
-                
-                cursor.execute('''
-                    INSERT INTO department_schedules (department, shift_type, work_start, work_end, break_start, break_end, has_lunch, lunch_options, friday_end) VALUES
-                    ('Reacondicionamiento', NULL, '07:00', '17:00', '09:00', '10:00', TRUE, ARRAY['12:00-13:00', '13:00-14:00'], '16:00'),
-                    ('Logística', NULL, '07:00', '17:00', '09:00', '10:00', TRUE, ARRAY['12:00-13:00', '13:00-14:00'], '16:00'),
-                    ('Administración', NULL, '07:00', '17:00', '09:00', '10:00', TRUE, ARRAY['12:00-13:00', '13:00-14:00'], '16:00'),
-                    ('Operativos', 'mañana', '06:00', '14:00', '09:00', '10:00', FALSE, NULL, NULL),
-                    ('Operativos', 'tarde', '14:00', '22:00', '17:00', '18:00', FALSE, NULL, NULL),
-                    ('Operativos', 'noche', '22:00', '06:00', '01:00', '02:00', FALSE, NULL, NULL)
-                    ON CONFLICT DO NOTHING
-                ''')
-                
                 # Crear índices para optimización
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_attendance_employee_id ON attendance_records(employee_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_attendance_timestamp ON attendance_records(timestamp)')
@@ -311,10 +290,10 @@ class OptimizedAttendanceSystem:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_weekly_shifts_employee_week ON weekly_shift_assignments(employee_id, week_start)')
             
             conn.commit()
-            print("✅ Base de datos inicializada")
+            print("Base de datos inicializada")
             
         except Exception as e:
-            print(f"❌ Error inicializando base de datos: {e}")
+            print(f"Error inicializando base de datos: {e}")
         finally:
             conn.close()
     
@@ -387,24 +366,48 @@ class OptimizedAttendanceSystem:
             # Determinar tipo de evento
             event_type = self.determine_event_type(employee_id)
             
+            # Determinar si es break o almuerzo
+            is_break = event_type.startswith('break_')
+            is_lunch = event_type.startswith('almuerzo_')
+            
+            break_type = None
+            if is_break:
+                if employee[1] == 'Operativos':
+                    break_type = 'operativo_break'
+                else:
+                    break_type = 'admin_break'
+            elif is_lunch:
+                break_type = 'almuerzo_admin'
+            
             # Insertar registro
             if self.db_type == 'postgresql':
                 cursor.execute('''
                     INSERT INTO attendance_records 
-                    (employee_id, event_type, timestamp, reader_no, verify_method, status)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                ''', (employee_id, event_type, local_timestamp, reader_no, verify_method, "autorizado"))
+                    (employee_id, event_type, timestamp, reader_no, verify_method, status, is_break_record, break_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (employee_id, event_type, local_timestamp, reader_no, verify_method, "autorizado", is_break or is_lunch, break_type))
             else:
                 cursor.execute('''
                     INSERT INTO attendance_records 
-                    (employee_id, event_type, timestamp, reader_no, verify_method, status)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (employee_id, event_type, local_timestamp, reader_no, verify_method, "autorizado"))
+                    (employee_id, event_type, timestamp, reader_no, verify_method, status, is_break_record, break_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (employee_id, event_type, local_timestamp, reader_no, verify_method, "autorizado", is_break or is_lunch, break_type))
             
             conn.commit()
             conn.close()
             
-            print(f"✅ REGISTRO: {employee[0]} - {event_type.upper()} - {local_timestamp}")
+            print(f"REGISTRO: {employee[0]} - {event_type.upper()} - {local_timestamp}")
+            
+            # Mostrar tipo de break o almuerzo si aplica
+            if is_break:
+                if employee[1] == 'Operativos':
+                    break_display = 'BREAK OPERATIVO' if event_type == 'break_salida' else 'REGRESO DE BREAK OPERATIVO'
+                else:
+                    break_display = 'BREAK ADMINISTRATIVO' if event_type == 'break_salida' else 'REGRESO DE BREAK'
+                print(f"BREAK: {break_display}")
+            elif is_lunch:
+                lunch_display = 'SALIDA A ALMUERZO' if event_type == 'almuerzo_salida' else 'REGRESO DE ALMUERZO'
+                print(f"ALMUERZO: {lunch_display}")
             
             # Emitir evento WebSocket
             socketio.emit('attendance_record', {
@@ -415,7 +418,10 @@ class OptimizedAttendanceSystem:
                 'verify_method': verify_method,
                 'department': employee[1] or 'General',
                 'schedule': employee[2] or 'estandar',
-                'real_time': True
+                'real_time': True,
+                'is_break': is_break,
+                'is_lunch': is_lunch,
+                'break_type': break_type
             })
             
             # Verificar tardanza solo para la primera entrada del día
@@ -428,37 +434,106 @@ class OptimizedAttendanceSystem:
             return True
             
         except Exception as e:
-            print(f"❌ Error al registrar: {e}")
+            print(f"Error al registrar: {e}")
             return False
     
     def determine_event_type(self, employee_id):
-        """Determinar entrada o salida"""
+        """Determinar entrada, salida, break o almuerzo"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Obtener último registro del día
+        # Obtener información del empleado y último registro
         if self.db_type == 'postgresql':
             cursor.execute('''
-                SELECT event_type FROM attendance_records 
-                WHERE employee_id = %s AND DATE(timestamp) = CURRENT_DATE
-                ORDER BY timestamp DESC LIMIT 1
-            ''', (employee_id,))
+                SELECT e.department, ar.event_type FROM employees e
+                LEFT JOIN (
+                    SELECT employee_id, event_type FROM attendance_records 
+                    WHERE employee_id = %s AND DATE(timestamp) = CURRENT_DATE
+                    ORDER BY timestamp DESC LIMIT 1
+                ) ar ON e.employee_id = ar.employee_id
+                WHERE e.employee_id = %s
+            ''', (employee_id, employee_id))
         else:
             cursor.execute('''
-                SELECT event_type FROM attendance_records 
-                WHERE employee_id = ? AND date(timestamp) = date('now')
-                ORDER BY timestamp DESC LIMIT 1
-            ''', (employee_id,))
+                SELECT e.department, ar.event_type FROM employees e
+                LEFT JOIN (
+                    SELECT employee_id, event_type FROM attendance_records 
+                    WHERE employee_id = ? AND date(timestamp) = date('now')
+                    ORDER BY timestamp DESC LIMIT 1
+                ) ar ON e.employee_id = ar.employee_id
+                WHERE e.employee_id = ?
+            ''', (employee_id, employee_id))
         
-        last_record = cursor.fetchone()
+        result = cursor.fetchone()
+        
+        # Obtener turno del empleado si es operativo
+        shift_type = None
+        if result and result[0] == 'Operativos':
+            today = datetime.now().strftime('%Y-%m-%d')
+            week_start = datetime.now().date() - timedelta(days=datetime.now().weekday())
+            
+            if self.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT shift_type FROM weekly_shift_assignments 
+                    WHERE employee_id = %s AND week_start = %s
+                ''', (employee_id, week_start))
+            else:
+                cursor.execute('''
+                    SELECT shift_type FROM weekly_shift_assignments 
+                    WHERE employee_id = ? AND week_start = ?
+                ''', (employee_id, week_start))
+            
+            shift_result = cursor.fetchone()
+            if shift_result:
+                shift_type = shift_result[0]
+        
         conn.close()
         
-        # Si no hay registros, es entrada
-        if not last_record:
+        if not result:
             return 'entrada'
         
-        # Alternar entrada/salida
-        return 'salida' if last_record[0] == 'entrada' else 'entrada'
+        department, last_event = result
+        current_time = datetime.now().time()
+        
+        # FASE 2: Detección de almuerzo para departamentos administrativos (12:00-14:00)
+        if department in ['Reacondicionamiento', 'Logistica', 'Administracion']:
+            # Almuerzo: 12:00-14:00
+            if dt_time(12, 0) <= current_time <= dt_time(14, 0):
+                if last_event in ['entrada', 'break_entrada']:
+                    return 'almuerzo_salida'
+                elif last_event == 'almuerzo_salida':
+                    return 'almuerzo_entrada'
+            
+            # Break de mañana: 9:00-10:00
+            elif dt_time(9, 0) <= current_time <= dt_time(10, 0):
+                if last_event == 'entrada':
+                    return 'break_salida'
+                elif last_event == 'break_salida':
+                    return 'break_entrada'
+        
+        # FASE 3: Breaks para operativos por turnos
+        elif department == 'Operativos' and shift_type:
+            if shift_type == 'mañana' and dt_time(9, 0) <= current_time <= dt_time(10, 0):
+                if last_event == 'entrada':
+                    return 'break_salida'
+                elif last_event == 'break_salida':
+                    return 'break_entrada'
+            elif shift_type == 'tarde' and dt_time(17, 0) <= current_time <= dt_time(18, 0):
+                if last_event == 'entrada':
+                    return 'break_salida'
+                elif last_event == 'break_salida':
+                    return 'break_entrada'
+            elif shift_type == 'noche' and dt_time(1, 0) <= current_time <= dt_time(2, 0):
+                if last_event == 'entrada':
+                    return 'break_salida'
+                elif last_event == 'break_salida':
+                    return 'break_entrada'
+        
+        # Lógica normal entrada/salida
+        if not last_event:
+            return 'entrada'
+        
+        return 'salida' if last_event in ['entrada', 'break_entrada', 'almuerzo_entrada'] else 'entrada'
     
     def add_employee(self, employee_id, name, department="General", schedule="estandar", phone="", email=""):
         """Agregar empleado"""
@@ -531,96 +606,191 @@ class OptimizedAttendanceSystem:
         self.cache_timestamp = current_time
         return list(self.employees_cache.values())
     
-    def get_schedule_hours(self, schedule, day_of_week):
-        """Obtener horarios según el tipo y día de la semana"""
-        schedules = {
-            'administrativo': {
-                'monday': ('07:00', '17:00'),
-                'tuesday': ('07:00', '17:00'),
-                'wednesday': ('07:00', '17:00'),
-                'thursday': ('07:00', '17:00'),
-                'friday': ('07:00', '16:00'),
-                'saturday': None,
-                'sunday': None
-            },
-            'reacondicionamiento': {
-                'monday': ('07:00', '17:00'),
-                'tuesday': ('07:00', '17:00'),
-                'wednesday': ('07:00', '17:00'),
-                'thursday': ('07:00', '17:00'),
-                'friday': ('07:00', '16:00'),
-                'saturday': None,
-                'sunday': None
-            },
-            'general': {
-                'monday': ('08:00', '17:00'),
-                'tuesday': ('08:00', '17:00'),
-                'wednesday': ('08:00', '17:00'),
-                'thursday': ('08:00', '17:00'),
-                'friday': ('08:00', '17:00'),
-                'saturday': None,
-                'sunday': None
-            },
-            'estandar': {
-                'monday': ('08:00', '17:00'),
-                'tuesday': ('08:00', '17:00'),
-                'wednesday': ('08:00', '17:00'),
-                'thursday': ('08:00', '17:00'),
-                'friday': ('08:00', '17:00'),
-                'saturday': None,
-                'sunday': None
-            }
-        }
+    def calculate_worked_hours(self, entrada_time, salida_time, department):
+        """Calcular horas reales trabajadas descontando breaks/almuerzos"""
+        if not entrada_time or not salida_time:
+            return 0
         
-        schedule_key = schedule.lower() if schedule else 'general'
-        day_key = day_of_week.lower()
-        
-        return schedules.get(schedule_key, schedules['general']).get(day_key)
+        try:
+            # Convertir a datetime para cálculos
+            if isinstance(entrada_time, str):
+                entrada_dt = datetime.strptime(entrada_time, '%H:%M:%S')
+            else:
+                entrada_dt = datetime.combine(datetime.today(), entrada_time)
+            
+            if isinstance(salida_time, str):
+                salida_dt = datetime.strptime(salida_time, '%H:%M:%S')
+            else:
+                salida_dt = datetime.combine(datetime.today(), salida_time)
+            
+            # Si la salida es al día siguiente (turno nocturno)
+            if salida_dt.time() < entrada_dt.time():
+                salida_dt = salida_dt + timedelta(days=1)
+            
+            # Calcular horas brutas
+            total_seconds = (salida_dt - entrada_dt).total_seconds()
+            hours_worked = total_seconds / 3600
+            
+            # Descontar breaks según departamento
+            if department in ['Reacondicionamiento', 'Logistica', 'Administracion']:
+                # Descontar 20 min de break + 60 min de almuerzo = 80 min = 1.33 horas
+                hours_worked -= 80 / 60
+            elif department == 'Operativos':
+                # Descontar solo 20 min de break = 0.33 horas
+                hours_worked -= 20 / 60
+            else:
+                # Otros departamentos: descontar break + almuerzo
+                hours_worked -= 80 / 60
+            
+            return max(0, round(hours_worked, 2))
+            
+        except Exception as e:
+            print(f"Error calculando horas: {e}")
+            return 0
     
-    def generate_attendance_report(self, start_date, end_date, employee_id=None, department=None):
-        """Generar reporte de asistencia con análisis de puntualidad"""
+    def get_dashboard_data(self):
+        """Obtener datos del dashboard"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
-            # Construir consulta base
-            base_query = '''
-                SELECT e.employee_id, e.name, e.department, e.schedule,
-                       ar.timestamp, ar.event_type
-                FROM employees e
-                LEFT JOIN attendance_records ar ON e.employee_id = ar.employee_id
-                WHERE e.active = {} AND ar.timestamp BETWEEN {} AND {}
-            '''.format(
-                'true' if self.db_type == 'postgresql' else '1',
-                '%s' if self.db_type == 'postgresql' else '?',
-                '%s' if self.db_type == 'postgresql' else '?'
-            )
+            # Registros de hoy
+            if self.db_type == 'postgresql':
+                cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE DATE(timestamp) = CURRENT_DATE")
+                total_records = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(DISTINCT employee_id) FROM attendance_records WHERE DATE(timestamp) = CURRENT_DATE")
+                unique_employees = cursor.fetchone()[0]
+                
+                # Estado de empleados
+                cursor.execute('''
+                    SELECT e.name, e.employee_id, ar.event_type, ar.timestamp
+                    FROM employees e
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (employee_id) employee_id, event_type, timestamp
+                        FROM attendance_records
+                        WHERE DATE(timestamp) = CURRENT_DATE
+                        ORDER BY employee_id, timestamp DESC
+                    ) ar ON e.employee_id = ar.employee_id
+                    WHERE e.active = true
+                ''')
+                employees_status = cursor.fetchall()
+                
+                # Registros recientes (solo empleados activos)
+                cursor.execute('''
+                    SELECT e.name, ar.event_type, ar.timestamp, ar.verify_method
+                    FROM attendance_records ar
+                    JOIN employees e ON ar.employee_id = e.employee_id
+                    WHERE e.active = true
+                    ORDER BY ar.timestamp DESC LIMIT 20
+                ''')
+                recent_records = cursor.fetchall()
+                
+            else:
+                cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE date(timestamp) = date('now')")
+                total_records = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(DISTINCT employee_id) FROM attendance_records WHERE date(timestamp) = date('now')")
+                unique_employees = cursor.fetchone()[0]
+                
+                cursor.execute('''
+                    SELECT e.name, e.employee_id, ar.event_type, ar.timestamp
+                    FROM employees e
+                    LEFT JOIN (
+                        SELECT employee_id, event_type, timestamp,
+                               ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY timestamp DESC) as rn
+                        FROM attendance_records
+                        WHERE date(timestamp) = date('now')
+                    ) ar ON e.employee_id = ar.employee_id AND ar.rn = 1
+                    WHERE e.active = 1
+                ''')
+                employees_status = cursor.fetchall()
+                
+                cursor.execute('''
+                    SELECT e.name, ar.event_type, ar.timestamp, ar.verify_method
+                    FROM attendance_records ar
+                    JOIN employees e ON ar.employee_id = e.employee_id
+                    WHERE e.active = 1
+                    ORDER BY ar.timestamp DESC LIMIT 20
+                ''')
+                recent_records = cursor.fetchall()
             
-            params = [start_date + ' 00:00:00', end_date + ' 23:59:59']
+            conn.close()
             
-            if employee_id:
-                base_query += ' AND e.employee_id = {}'
-                base_query = base_query.format('%s' if self.db_type == 'postgresql' else '?')
-                params.append(employee_id)
+            # Procesar estado de empleados
+            inside = []
+            outside = []
             
-            if department and department != 'General':
-                base_query += ' AND e.department = {}'
-                base_query = base_query.format('%s' if self.db_type == 'postgresql' else '?')
-                params.append(department)
+            for emp in employees_status:
+                name, emp_id, last_event, timestamp = emp
+                if last_event == 'entrada':
+                    inside.append({'name': name, 'id': emp_id, 'time': timestamp})
+                else:
+                    outside.append({'name': name, 'id': emp_id, 'time': timestamp})
             
-            base_query += ' ORDER BY e.name, ar.timestamp'
+            return {
+                'total_records': total_records,
+                'unique_employees': unique_employees,
+                'employees_inside': inside,
+                'employees_outside': outside,
+                'recent_records': recent_records,
+                'connected': self.connected,
+                'monitoring': self.monitoring
+            }
             
-            cursor.execute(base_query, params)
-            records = cursor.fetchall()
-            
-            print(f"Debug: Found {len(records)} attendance records")
-            print(f"Debug: Query params: {params}")
-            
-            # Procesar datos por empleado y día
-            report_data = {}
-            current_date = datetime.strptime(start_date, '%Y-%m-%d')
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
-            
+        except Exception as e:
+            print(f"Error obteniendo datos dashboard: {e}")
+            conn.close()
+            return {
+                'total_records': 0,
+                'unique_employees': 0,
+                'employees_inside': [],
+                'employees_outside': [],
+                'recent_records': [],
+                'connected': self.connected,
+                'monitoring': self.monitoring
+            }
+    
+    def is_work_day(self, date_obj, schedule, department):
+        """Determinar si es día laboral según horarios por departamento"""
+        day_of_week = date_obj.weekday()  # 0=Lunes, 6=Domingo
+        
+        # Horarios por departamento
+        if department in ['Reacondicionamiento', 'Logistica', 'Administracion']:
+            # L-J: 7:00-17:00, V: 7:00-16:00, S-D: No laboral
+            return day_of_week < 5  # Lunes a Viernes
+        elif department == 'Operativos':
+            # Todos los días según turno asignado
+            return True
+        else:
+            # General: L-V: 8:00-17:00
+            return day_of_week < 5  # Lunes a Viernes
+    
+    def get_expected_hours_by_department(self, department, day_of_week):
+        """Obtener horarios esperados por departamento y día"""
+        if department in ['Reacondicionamiento', 'Logistica', 'Administracion']:
+            if day_of_week < 4:  # Lunes a Jueves
+                return ('07:00', '17:00')
+            elif day_of_week == 4:  # Viernes
+                return ('07:00', '16:00')
+            else:  # Fin de semana
+                return None
+        elif department == 'Operativos':
+            # Depende del turno asignado - se manejará por separado
+            return ('06:00', '14:00')  # Default mañana
+        else:
+            # General
+            if day_of_week < 5:  # Lunes a Viernes
+                return ('08:00', '17:00')
+            else:
+                return None
+    
+    def generate_attendance_report(self, start_date, end_date, employee_id=None, department=None):
+        """Generar reporte de asistencia mejorado con cálculos precisos"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
             # Obtener todos los empleados activos
             if self.db_type == 'postgresql':
                 emp_query = 'SELECT employee_id, name, department, schedule FROM employees WHERE active = true'
@@ -639,57 +809,96 @@ class OptimizedAttendanceSystem:
                 emp_params.append(department)
             
             emp_query += ' ORDER BY name'
-            
             cursor.execute(emp_query, emp_params)
             employees = cursor.fetchall()
             
-            # Inicializar estructura de datos
+            if not employees:
+                conn.close()
+                return {}
+            
+            # Obtener registros de asistencia
+            if self.db_type == 'postgresql':
+                records_query = '''
+                    SELECT employee_id, event_type, timestamp FROM attendance_records 
+                    WHERE DATE(timestamp) BETWEEN %s AND %s AND event_type IN ('entrada', 'salida')
+                    ORDER BY employee_id, timestamp
+                '''
+            else:
+                records_query = '''
+                    SELECT employee_id, event_type, timestamp FROM attendance_records 
+                    WHERE date(timestamp) BETWEEN ? AND ? AND event_type IN ('entrada', 'salida')
+                    ORDER BY employee_id, timestamp
+                '''
+            
+            cursor.execute(records_query, [start_date, end_date])
+            records = cursor.fetchall()
+            conn.close()
+            
+            # Procesar datos por empleado
+            report_data = {}
+            current_date = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            
+            # Inicializar estructura para cada empleado
             for emp in employees:
-                report_data[emp[0]] = {
-                    'name': emp[1],
-                    'department': emp[2],
-                    'schedule': emp[3],
+                emp_id, name, dept, schedule = emp
+                report_data[emp_id] = {
+                    'name': name,
+                    'department': dept or 'General',
+                    'schedule': schedule or 'general',
+                    'summary': {
+                        'total_days_worked': 0,
+                        'total_hours': 0,
+                        'late_days': 0,
+                        'absent_days': 0,
+                        'weekend_days': 0,
+                        'average_daily_hours': 0
+                    },
                     'days': {}
                 }
             
-            print(f"Debug: Initialized {len(report_data)} employees")
-            print(f"Debug: Employee IDs: {list(report_data.keys())}")
-            
-            # Llenar días del rango
-            while current_date <= end_date_obj:
-                date_str = current_date.strftime('%Y-%m-%d')
-                day_name = current_date.strftime('%A').lower()
+            # Llenar todos los días del rango
+            temp_date = current_date
+            while temp_date <= end_date_obj:
+                date_str = temp_date.strftime('%Y-%m-%d')
+                day_name = temp_date.strftime('%A')
+                day_of_week = temp_date.weekday()
                 
                 for emp_id in report_data:
-                    schedule = report_data[emp_id]['schedule']
-                    expected_hours = self.get_schedule_hours(schedule, day_name)
+                    emp_data = report_data[emp_id]
+                    department = emp_data['department']
                     
-                    report_data[emp_id]['days'][date_str] = {
-                        'date': current_date.strftime('%d/%m/%Y'),
-                        'day_name': current_date.strftime('%A'),
+                    # Determinar si es día laboral
+                    is_work_day = self.is_work_day(temp_date, emp_data['schedule'], department)
+                    expected_hours = self.get_expected_hours_by_department(department, day_of_week) if is_work_day else None
+                    
+                    emp_data['days'][date_str] = {
+                        'date': temp_date.strftime('%d/%m/%Y'),
+                        'day_name': day_name,
                         'expected_hours': expected_hours,
                         'entrada': None,
                         'salida': None,
-                        'status': 'Ausente',
+                        'status': 'No laborable' if not is_work_day else 'Ausente',
                         'late': False,
                         'early_exit': False,
                         'hours_worked': 0,
                         'late_minutes': 0,
-                        'early_minutes': 0
+                        'early_minutes': 0,
+                        'observations': []
                     }
+                    
+                    if not is_work_day:
+                        emp_data['summary']['weekend_days'] += 1
                 
-                current_date += timedelta(days=1)
+                temp_date += timedelta(days=1)
             
             # Procesar registros de asistencia
             for record in records:
-                emp_id, name, dept, schedule, timestamp, event_type = record
-                if not timestamp:
-                    continue
-                    
+                emp_id, event_type, timestamp = record
                 if emp_id not in report_data:
                     continue
-                    
-                # Extraer fecha y hora del timestamp
+                
+                # Extraer fecha y hora
                 timestamp_str = str(timestamp)
                 if 'T' in timestamp_str:
                     date_part = timestamp_str.split('T')[0]
@@ -700,98 +909,73 @@ class OptimizedAttendanceSystem:
                 
                 if date_part in report_data[emp_id]['days']:
                     day_data = report_data[emp_id]['days'][date_part]
-                    record_time = datetime.strptime(time_part, '%H:%M:%S').time()
                     
                     if event_type == 'entrada':
-                        if not day_data['entrada'] or record_time < day_data['entrada']:
-                            day_data['entrada'] = record_time.strftime('%H:%M:%S')
+                        if not day_data['entrada']:
+                            day_data['entrada'] = time_part
                     elif event_type == 'salida':
-                        if not day_data['salida'] or record_time > datetime.strptime(day_data['salida'] or '00:00:00', '%H:%M:%S').time():
-                            day_data['salida'] = record_time.strftime('%H:%M:%S')
+                        day_data['salida'] = time_part  # Última salida
             
-            # Calcular estadísticas
+            # Calcular estadísticas finales
             for emp_id in report_data:
-                for date_str, day_data in report_data[emp_id]['days'].items():
-                    expected_hours = day_data['expected_hours']
-                    
-                    if not expected_hours:  # Fin de semana
-                        day_data['status'] = 'No laborable'
+                emp_data = report_data[emp_id]
+                department = emp_data['department']
+                
+                for date_str, day_data in emp_data['days'].items():
+                    if day_data['expected_hours'] is None:  # No laborable
                         continue
                     
                     entrada = day_data['entrada']
                     salida = day_data['salida']
+                    expected_start, expected_end = day_data['expected_hours']
                     
                     if entrada and salida:
+                        # Calcular horas trabajadas con descuentos
+                        hours_worked = self.calculate_worked_hours(entrada, salida, department)
+                        day_data['hours_worked'] = hours_worked
                         day_data['status'] = 'Presente'
                         
-                        # Convertir strings a time objects para cálculos
-                        entrada_time = datetime.strptime(entrada, '%H:%M:%S').time()
-                        salida_time = datetime.strptime(salida, '%H:%M:%S').time()
-                        
                         # Verificar tardanza
-                        expected_start_str = expected_hours[0]
-                        if ':' in expected_start_str:
-                            expected_start = datetime.strptime(expected_start_str, '%H:%M').time()
-                        else:
-                            expected_start = datetime.strptime(expected_start_str, '%H:%M:%S').time()
+                        entrada_time = datetime.strptime(entrada, '%H:%M:%S').time()
+                        expected_start_time = datetime.strptime(expected_start, '%H:%M').time()
                         
-                        if entrada_time > expected_start:
+                        if entrada_time > expected_start_time:
                             day_data['late'] = True
                             entrada_dt = datetime.combine(datetime.today(), entrada_time)
-                            expected_dt = datetime.combine(datetime.today(), expected_start)
+                            expected_dt = datetime.combine(datetime.today(), expected_start_time)
                             day_data['late_minutes'] = int((entrada_dt - expected_dt).total_seconds() / 60)
+                            day_data['observations'].append(f"Tardó {day_data['late_minutes']} min")
+                            emp_data['summary']['late_days'] += 1
                         
                         # Verificar salida temprana
-                        expected_end_str = expected_hours[1]
-                        if ':' in expected_end_str and len(expected_end_str) <= 5:
-                            expected_end = datetime.strptime(expected_end_str, '%H:%M').time()
-                        else:
-                            expected_end = datetime.strptime(expected_end_str, '%H:%M:%S').time()
+                        salida_time = datetime.strptime(salida, '%H:%M:%S').time()
+                        expected_end_time = datetime.strptime(expected_end, '%H:%M').time()
                         
-                        if salida_time < expected_end:
+                        if salida_time < expected_end_time:
                             day_data['early_exit'] = True
                             salida_dt = datetime.combine(datetime.today(), salida_time)
-                            expected_dt = datetime.combine(datetime.today(), expected_end)
+                            expected_dt = datetime.combine(datetime.today(), expected_end_time)
                             day_data['early_minutes'] = int((expected_dt - salida_dt).total_seconds() / 60)
+                            day_data['observations'].append(f"Salió {day_data['early_minutes']} min temprano")
                         
-                        # Calcular horas trabajadas
-                        entrada_dt = datetime.combine(datetime.today(), entrada_time)
-                        salida_dt = datetime.combine(datetime.today(), salida_time)
-                        
-                        # Si la salida es al día siguiente (turno nocturno)
-                        if salida_time < entrada_time:
-                            salida_dt = salida_dt + timedelta(days=1)
-                        
-                        total_seconds = (salida_dt - entrada_dt).total_seconds()
-                        hours_worked = total_seconds / 3600
-                        
-                        # Descontar tiempo de breaks según departamento
-                        department = report_data[emp_id]['department']
-                        if department in ['Reacondicionamiento', 'Logistica', 'Administracion']:
-                            # Descontar 20 min de break + 60 min de almuerzo
-                            hours_worked -= (20 + 60) / 60  # 1.33 horas
-                        elif department == 'Operativos':
-                            # Descontar solo 20 min de break
-                            hours_worked -= 20 / 60  # 0.33 horas
-                        else:
-                            # Otros departamentos: descontar break + almuerzo
-                            hours_worked -= (20 + 60) / 60  # 1.33 horas
-                        
-                        day_data['hours_worked'] = max(0, round(hours_worked, 2))
+                        emp_data['summary']['total_days_worked'] += 1
+                        emp_data['summary']['total_hours'] += hours_worked
                         
                     elif entrada:
                         day_data['status'] = 'Sin salida'
-                        # Calcular horas parciales hasta ahora
-                        entrada_time = datetime.strptime(entrada, '%H:%M:%S').time()
-                        entrada_dt = datetime.combine(datetime.today(), entrada_time)
-                        now_dt = datetime.now()
-                        if now_dt.date() == datetime.strptime(date_str, '%Y-%m-%d').date():
-                            partial_hours = (now_dt - entrada_dt).total_seconds() / 3600
-                            day_data['hours_worked'] = max(0, round(partial_hours, 2))
+                        day_data['observations'].append('Falta registro de salida')
                     elif salida:
                         day_data['status'] = 'Sin entrada'
+                        day_data['observations'].append('Falta registro de entrada')
+                    else:
+                        emp_data['summary']['absent_days'] += 1
+                
+                # Calcular promedio de horas diarias
+                if emp_data['summary']['total_days_worked'] > 0:
+                    emp_data['summary']['average_daily_hours'] = round(
+                        emp_data['summary']['total_hours'] / emp_data['summary']['total_days_worked'], 2
+                    )
             
-            conn.close()
             return report_data
             
         except Exception as e:
@@ -933,7 +1117,7 @@ class OptimizedAttendanceSystem:
         return filename
     
     def check_late_arrival_first_entry(self, employee_id, name, department, schedule, timestamp):
-        """Verificar si la primera entrada del día es tardía y enviar notificación"""
+        """Verificar si la primera entrada del día es tardía usando horarios por departamento"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -959,14 +1143,13 @@ class OptimizedAttendanceSystem:
             if entry_count > 1:
                 return
             
-            # Obtener día de la semana
+            # Obtener horario esperado por departamento
             arrival_time = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-            day_name = arrival_time.strftime('%A').lower()
+            day_of_week = arrival_time.weekday()
             
-            # Obtener horario esperado
-            expected_hours = self.get_schedule_hours(schedule, day_name)
+            expected_hours = self.get_expected_hours_by_department(department, day_of_week)
             if not expected_hours:
-                return
+                return  # No es día laboral
             
             # Verificar tardanza
             arrival_time_only = arrival_time.time()
@@ -990,28 +1173,41 @@ class OptimizedAttendanceSystem:
                     'severity': 'severe' if late_minutes > 30 else 'moderate' if late_minutes > 15 else 'mild'
                 })
                 
-                print(f"⚠️ TARDANZA: {name} llegó {late_minutes} minutos tarde")
+                print(f"TARDANZA: {name} llegó {late_minutes} minutos tarde")
                 
         except Exception as e:
             print(f"Error verificando tardanza: {e}")
     
     def update_daily_summary(self, employee_id, date):
-        """Actualizar resumen diario del empleado"""
+        """Actualizar resumen diario del empleado con cálculos mejorados"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            # Obtener todos los registros del día
+            # Obtener información del empleado
+            if self.db_type == 'postgresql':
+                cursor.execute('SELECT name, department FROM employees WHERE employee_id = %s', (employee_id,))
+            else:
+                cursor.execute('SELECT name, department FROM employees WHERE employee_id = ?', (employee_id,))
+            
+            employee_info = cursor.fetchone()
+            if not employee_info:
+                conn.close()
+                return
+            
+            name, department = employee_info
+            
+            # Obtener todos los registros del día (solo entrada/salida)
             if self.db_type == 'postgresql':
                 cursor.execute('''
                     SELECT event_type, timestamp FROM attendance_records 
-                    WHERE employee_id = %s AND DATE(timestamp) = %s
+                    WHERE employee_id = %s AND DATE(timestamp) = %s AND event_type IN ('entrada', 'salida')
                     ORDER BY timestamp
                 ''', (employee_id, date))
             else:
                 cursor.execute('''
                     SELECT event_type, timestamp FROM attendance_records 
-                    WHERE employee_id = ? AND date(timestamp) = ?
+                    WHERE employee_id = ? AND date(timestamp) = ? AND event_type IN ('entrada', 'salida')
                     ORDER BY timestamp
                 ''', (employee_id, date))
             
@@ -1034,23 +1230,17 @@ class OptimizedAttendanceSystem:
                 elif event_type == 'salida':
                     last_exit = time_part
             
-            # Calcular horas trabajadas
+            # Calcular horas trabajadas con descuentos
             total_hours = 0
             worked_day = False
             
             if first_entry and last_exit:
-                from datetime import datetime, timedelta
-                entry_dt = datetime.strptime(first_entry, '%H:%M:%S')
-                exit_dt = datetime.strptime(last_exit, '%H:%M:%S')
-                
-                if exit_dt > entry_dt:
-                    total_hours = (exit_dt - entry_dt).total_seconds() / 3600
-                    worked_day = total_hours > 1  # Mínimo 1 hora para contar como día trabajado
+                total_hours = self.calculate_worked_hours(first_entry, last_exit, department)
+                worked_day = total_hours > 1  # Mínimo 1 hora para contar como día trabajado
             
             # Verificar si es fin de semana
-            from datetime import datetime
             date_obj = datetime.strptime(date, '%Y-%m-%d')
-            is_weekend = date_obj.weekday() >= 5  # Sábado=5, Domingo=6
+            is_weekend = not self.is_work_day(date_obj, 'general', department)
             
             # Insertar o actualizar resumen
             if self.db_type == 'postgresql':
@@ -1077,8 +1267,6 @@ class OptimizedAttendanceSystem:
             
         except Exception as e:
             print(f"Error actualizando resumen diario: {e}")
-    
-    def get_dashboard_data(self):
         """Obtener datos del dashboard"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -1169,7 +1357,7 @@ class OptimizedAttendanceSystem:
             }
             
         except Exception as e:
-            print(f"❌ Error obteniendo datos dashboard: {e}")
+            print(f"Error obteniendo datos dashboard: {e}")
             conn.close()
             return {
                 'total_records': 0,
@@ -1187,12 +1375,12 @@ class OptimizedAttendanceSystem:
             self.monitoring = True
             monitor_thread = threading.Thread(target=self._monitor_events, daemon=True)
             monitor_thread.start()
-            print("✅ Monitoreo iniciado")
+            print("Monitoreo iniciado")
     
     def stop_monitoring(self):
         """Detener monitoreo"""
         self.monitoring = False
-        print("⏹️ Monitoreo detenido")
+        print("Monitoreo detenido")
     
     def _monitor_events(self):
         """Monitoreo de eventos del dispositivo"""
@@ -1204,7 +1392,7 @@ class OptimizedAttendanceSystem:
                 
                 if response.status_code == 200:
                     self.connected = True
-                    print("📡 Stream de eventos activo")
+                    print("Stream de eventos activo")
                     
                     buffer = ""
                     for chunk in response.iter_content(chunk_size=1024):
@@ -1249,12 +1437,12 @@ class OptimizedAttendanceSystem:
                                     break
                 else:
                     self.connected = False
-                    print(f"❌ Error HTTP {response.status_code}")
+                    print(f"Error HTTP {response.status_code}")
                     time_module.sleep(10)
                     
             except Exception as e:
                 self.connected = False
-                print(f"❌ Error monitoreo: {str(e)[:50]}...")
+                print(f"Error monitoreo: {str(e)[:50]}...")
                 time_module.sleep(5)
     
     def _process_event(self, event):
@@ -1278,12 +1466,12 @@ system = OptimizedAttendanceSystem()
 # WebSocket events
 @socketio.on('connect')
 def handle_connect():
-    print('👤 Cliente conectado')
+    print('Cliente conectado')
     emit('status', {'connected': system.connected, 'monitoring': system.monitoring})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('👤 Cliente desconectado')
+    print('Cliente desconectado')
 
 # Rutas web
 @app.route('/')
@@ -1656,7 +1844,7 @@ def api_break_status():
             cursor.execute('''
                 WITH last_break_events AS (
                     SELECT DISTINCT ON (ar.employee_id) 
-                           ar.employee_id, e.name, ar.event_type, ar.timestamp, ar.break_type
+                           ar.employee_id, e.name, e.department, ar.event_type, ar.timestamp, ar.break_type
                     FROM attendance_records ar
                     JOIN employees e ON ar.employee_id = e.employee_id
                     WHERE DATE(ar.timestamp) = %s 
@@ -1664,13 +1852,13 @@ def api_break_status():
                           AND e.active = true
                     ORDER BY ar.employee_id, ar.timestamp DESC
                 )
-                SELECT employee_id, name, event_type, timestamp, break_type
+                SELECT employee_id, name, department, event_type, timestamp, break_type
                 FROM last_break_events
                 WHERE event_type IN ('break_salida', 'almuerzo_salida')
             ''', (today,))
         else:
             cursor.execute('''
-                SELECT ar.employee_id, e.name, ar.event_type, ar.timestamp, ar.break_type
+                SELECT ar.employee_id, e.name, e.department, ar.event_type, ar.timestamp, ar.break_type
                 FROM attendance_records ar
                 JOIN employees e ON ar.employee_id = e.employee_id
                 WHERE date(ar.timestamp) = ? 
@@ -1687,12 +1875,12 @@ def api_break_status():
         
         current_breaks = cursor.fetchall()
         
-        # Separar breaks y almuerzos
+        # Procesar empleados en break/almuerzo
         on_break = []
         on_lunch = []
         
         for record in current_breaks:
-            emp_id, name, event_type, timestamp, break_type = record
+            emp_id, name, department, event_type, timestamp, break_type = record
             
             # Calcular duración
             start_time = datetime.strptime(str(timestamp)[11:19], '%H:%M:%S').time()
@@ -1705,63 +1893,77 @@ def api_break_status():
             employee_data = {
                 'employee_id': emp_id,
                 'name': name,
+                'department': department,
                 'start_time': str(start_time)[:5],
-                'duration': duration,
-                'break_type': break_type or 'Break'
+                'duration': duration
             }
             
-            if event_type == 'almuerzo_salida':
-                on_lunch.append(employee_data)
-            else:
+            if event_type == 'break_salida':
                 on_break.append(employee_data)
+            elif event_type == 'almuerzo_salida':
+                on_lunch.append(employee_data)
         
-        # Contar cumplimiento de breaks
+        # Contar breaks completados
         if system.db_type == 'postgresql':
             cursor.execute('''
-                SELECT 
-                    COUNT(CASE WHEN break_type = 'admin_break' OR break_type = 'operativo_break' THEN 1 END) as breaks_completed,
-                    COUNT(CASE WHEN break_type LIKE 'almuerzo%' THEN 1 END) as lunch_completed
-                FROM attendance_records ar
+                SELECT COUNT(*) FROM attendance_records ar
                 JOIN employees e ON ar.employee_id = e.employee_id
                 WHERE DATE(ar.timestamp) = %s 
                       AND ar.is_break_record = true
-                      AND ar.event_type LIKE '%_entrada'
+                      AND ar.event_type = 'break_entrada'
                       AND e.active = true
             ''', (today,))
         else:
             cursor.execute('''
-                SELECT 
-                    COUNT(CASE WHEN break_type = 'admin_break' OR break_type = 'operativo_break' THEN 1 END) as breaks_completed,
-                    COUNT(CASE WHEN break_type LIKE 'almuerzo%' THEN 1 END) as lunch_completed
-                FROM attendance_records ar
+                SELECT COUNT(*) FROM attendance_records ar
                 JOIN employees e ON ar.employee_id = e.employee_id
                 WHERE date(ar.timestamp) = ? 
                       AND ar.is_break_record = 1
-                      AND ar.event_type LIKE '%_entrada'
+                      AND ar.event_type = 'break_entrada'
                       AND e.active = 1
             ''', (today,))
         
-        compliance = cursor.fetchone()
-        breaks_completed = compliance[0] if compliance else 0
-        lunch_completed = compliance[1] if compliance else 0
+        breaks_completed = cursor.fetchone()[0]
         
-        # Calcular pendientes (empleados activos que deberían tener break/almuerzo)
+        # Contar almuerzos completados
         if system.db_type == 'postgresql':
-            cursor.execute('SELECT COUNT(*) FROM employees WHERE active = true')
+            cursor.execute('''
+                SELECT COUNT(*) FROM attendance_records ar
+                JOIN employees e ON ar.employee_id = e.employee_id
+                WHERE DATE(ar.timestamp) = %s 
+                      AND ar.is_break_record = true
+                      AND ar.event_type = 'almuerzo_entrada'
+                      AND e.active = true
+            ''', (today,))
         else:
-            cursor.execute('SELECT COUNT(*) FROM employees WHERE active = 1')
+            cursor.execute('''
+                SELECT COUNT(*) FROM attendance_records ar
+                JOIN employees e ON ar.employee_id = e.employee_id
+                WHERE date(ar.timestamp) = ? 
+                      AND ar.is_break_record = 1
+                      AND ar.event_type = 'almuerzo_entrada'
+                      AND e.active = 1
+            ''', (today,))
         
-        total_active = cursor.fetchone()[0]
+        lunch_completed = cursor.fetchone()[0]
         
-        # Simplificado: asumir que todos necesitan break, solo admin necesita almuerzo
-        breaks_pending = max(0, total_active - breaks_completed)
-        
+        # Calcular pendientes
         if system.db_type == 'postgresql':
             cursor.execute("SELECT COUNT(*) FROM employees WHERE active = true AND department IN ('Reacondicionamiento', 'Logistica', 'Administracion')")
         else:
             cursor.execute("SELECT COUNT(*) FROM employees WHERE active = 1 AND department IN ('Reacondicionamiento', 'Logistica', 'Administracion')")
         
         admin_employees = cursor.fetchone()[0]
+        
+        if system.db_type == 'postgresql':
+            cursor.execute("SELECT COUNT(*) FROM employees WHERE active = true AND department = 'Operativos'")
+        else:
+            cursor.execute("SELECT COUNT(*) FROM employees WHERE active = 1 AND department = 'Operativos'")
+        
+        operativo_employees = cursor.fetchone()[0]
+        
+        total_employees = admin_employees + operativo_employees
+        breaks_pending = max(0, total_employees - breaks_completed)
         lunch_pending = max(0, admin_employees - lunch_completed)
         
         conn.close()
@@ -1780,7 +1982,7 @@ def api_break_status():
 
 @app.route('/api/alerts/late')
 def api_late_alerts():
-    """Obtener alertas de llegadas tardías del día"""
+    """Obtener alertas de llegadas tardías del día con horarios por departamento"""
     try:
         conn = system.get_connection()
         cursor = conn.cursor()
@@ -1810,29 +2012,25 @@ def api_late_alerts():
         conn.close()
         
         late_alerts = []
-        current_day = datetime.now().strftime('%A').lower()
         
         for record in records:
             emp_id, name, dept, schedule, first_entry = record
             
-            # Obtener horario esperado
-            expected_hours = system.get_schedule_hours(schedule, current_day)
+            # Obtener horario esperado por departamento
+            entry_time = datetime.strptime(str(first_entry)[:19], '%Y-%m-%d %H:%M:%S')
+            day_of_week = entry_time.weekday()
+            
+            expected_hours = system.get_expected_hours_by_department(dept, day_of_week)
             if not expected_hours:
                 continue
                 
             # Extraer hora de entrada
-            entry_time_str = str(first_entry)[11:19]
-            entry_time = datetime.strptime(entry_time_str, '%H:%M:%S').time()
+            entry_time_only = entry_time.time()
+            expected_start = datetime.strptime(expected_hours[0], '%H:%M').time()
             
-            expected_start_str = expected_hours[0]
-            if ':' in expected_start_str and len(expected_start_str) <= 5:
-                expected_start = datetime.strptime(expected_start_str, '%H:%M').time()
-            else:
-                expected_start = datetime.strptime(expected_start_str, '%H:%M:%S').time()
-            
-            if entry_time > expected_start:
+            if entry_time_only > expected_start:
                 # Calcular minutos de tardanza
-                entry_dt = datetime.combine(datetime.today(), entry_time)
+                entry_dt = datetime.combine(datetime.today(), entry_time_only)
                 expected_dt = datetime.combine(datetime.today(), expected_start)
                 late_minutes = int((entry_dt - expected_dt).total_seconds() / 60)
                 
@@ -1841,7 +2039,7 @@ def api_late_alerts():
                     'name': name,
                     'department': dept,
                     'expected_time': expected_hours[0],
-                    'actual_time': str(entry_time)[:5],
+                    'actual_time': str(entry_time_only)[:5],
                     'late_minutes': late_minutes,
                     'timestamp': first_entry
                 })
@@ -2024,14 +2222,14 @@ def api_get_technicians():
                     SELECT e.employee_id, e.name, e.department, wsa.shift_type
                     FROM employees e
                     LEFT JOIN weekly_shift_assignments wsa ON e.employee_id = wsa.employee_id AND wsa.week_start = %s
-                    WHERE e.active = true AND e.department = 'Desarme'
+                    WHERE e.active = true AND e.department = 'Operativos'
                     ORDER BY e.name
                 ''', (week_start,))
             else:
                 cursor.execute('''
                     SELECT employee_id, name, department, NULL as shift_type
                     FROM employees 
-                    WHERE active = true AND department = 'Desarme'
+                    WHERE active = true AND department = 'Operativos'
                     ORDER BY name
                 ''')
         else:
@@ -2040,14 +2238,14 @@ def api_get_technicians():
                     SELECT e.employee_id, e.name, e.department, wsa.shift_type
                     FROM employees e
                     LEFT JOIN weekly_shift_assignments wsa ON e.employee_id = wsa.employee_id AND wsa.week_start = ?
-                    WHERE e.active = 1 AND e.department = 'Desarme'
+                    WHERE e.active = 1 AND e.department = 'Operativos'
                     ORDER BY e.name
                 ''', (week_start,))
             else:
                 cursor.execute('''
                     SELECT employee_id, name, department, NULL as shift_type
                     FROM employees 
-                    WHERE active = 1 AND department = 'Desarme'
+                    WHERE active = 1 AND department = 'Operativos'
                     ORDER BY name
                 ''')
         
@@ -2363,6 +2561,84 @@ def api_monthly_report():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+@app.route('/api/reports/monthly-summary')
+def api_monthly_summary():
+    """Reporte mensual resumido: Empleado, Departamento, Días Presente, Días Ausente, Horas Totales"""
+    month = request.args.get('month')  # YYYY-MM
+    
+    if not month:
+        return jsonify({'error': 'Mes requerido (formato YYYY-MM)'})
+    
+    try:
+        conn = system.get_connection()
+        cursor = conn.cursor()
+        
+        # Obtener todos los empleados activos
+        if system.db_type == 'postgresql':
+            cursor.execute('SELECT employee_id, name, department FROM employees WHERE active = true ORDER BY name')
+        else:
+            cursor.execute('SELECT employee_id, name, department FROM employees WHERE active = 1 ORDER BY name')
+        
+        employees = cursor.fetchall()
+        
+        # Calcular días laborables del mes (excluyendo fines de semana)
+        year, month_num = map(int, month.split('-'))
+        import calendar
+        
+        # Contar días laborables (L-V)
+        work_days = 0
+        for day in range(1, calendar.monthrange(year, month_num)[1] + 1):
+            weekday = calendar.weekday(year, month_num, day)
+            if weekday < 5:  # L-V (0-4)
+                work_days += 1
+        
+        summary_data = []
+        
+        for emp_id, name, department in employees:
+            # Obtener resumen del empleado para el mes
+            if system.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT COUNT(*) as days_present, COALESCE(SUM(total_hours), 0) as total_hours
+                    FROM daily_summaries 
+                    WHERE employee_id = %s AND DATE_TRUNC('month', date) = %s::date AND worked_day = true
+                ''', (emp_id, month + '-01'))
+            else:
+                cursor.execute('''
+                    SELECT COUNT(*) as days_present, COALESCE(SUM(total_hours), 0) as total_hours
+                    FROM daily_summaries 
+                    WHERE employee_id = ? AND strftime('%Y-%m', date) = ? AND worked_day = 1
+                ''', (emp_id, month))
+            
+            result = cursor.fetchone()
+            days_present = result[0] if result else 0
+            total_hours = round(float(result[1]) if result and result[1] else 0, 2)
+            days_absent = work_days - days_present
+            
+            summary_data.append({
+                'employee_id': emp_id,
+                'name': name,
+                'department': department,
+                'days_present': days_present,
+                'days_absent': max(0, days_absent),
+                'total_hours': total_hours
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'month': month,
+            'work_days': work_days,
+            'employees': summary_data,
+            'totals': {
+                'total_employees': len(summary_data),
+                'total_hours': sum(emp['total_hours'] for emp in summary_data),
+                'avg_days_present': round(sum(emp['days_present'] for emp in summary_data) / len(summary_data), 1) if summary_data else 0
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 @app.route('/api/schedules/<employee_id>', methods=['DELETE'])
 def api_delete_schedule(employee_id):
     conn = system.get_connection()
@@ -2387,19 +2663,19 @@ def api_delete_schedule(employee_id):
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
 
 if __name__ == '__main__':
-    print("🚀 SISTEMA DE ASISTENCIA OPTIMIZADO")
+    print("SISTEMA DE ASISTENCIA OPTIMIZADO")
     print("=" * 50)
-    print(f"📱 Dispositivo: {system.device_ip}")
-    print(f"🗄️ Base de datos: {system.db_type.upper()}")
-    print(f"🌐 Dashboard: http://localhost:5000")
+    print(f"Dispositivo: {system.device_ip}")
+    print(f"Base de datos: {system.db_type.upper()}")
+    print(f"Dashboard: http://localhost:5000")
     print("=" * 50)
     
     # Probar conexión inicial
     if system.test_connection():
-        print("✅ Dispositivo conectado - Monitoreo activo")
+        print("Dispositivo conectado - Monitoreo activo")
         system.start_monitoring()
     else:
-        print("⚠️ Dispositivo no disponible - iniciando sin monitoreo")
+        print("Dispositivo no disponible - iniciando sin monitoreo")
     
     # Configuración para producción
     port = int(os.environ.get('PORT', 5000))

@@ -1034,10 +1034,10 @@
             </div>
             
             <!-- ESTADO DE BREAKS Y ALMUERZOS -->
-            <div class="employees-status" style="margin-top: 1.5rem; display: none;">
+            <div class="employees-status" style="margin-top: 1.5rem;">
                 <div class="chart-title">
                     <i class="fas fa-coffee" style="color: var(--amber-alert);"></i>
-                    Estado de Breaks y Almuerzos - Hoy
+                    Estado de Breaks - Hoy
                     <div style="margin-left: auto;">
                         <button class="btn btn-primary" onclick="loadBreakStatus()">
                             <i class="fas fa-sync-alt"></i>
@@ -1229,7 +1229,7 @@
                 <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-top: 1rem;">
                     <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
                         <i class="fas fa-users" style="color: var(--primary-blue);"></i>
-                        Técnicos del Departamento Desarme
+                        Técnicos del Departamento Operativos
                     </h4>
                     
                     <!-- Filtros por turno -->
@@ -1354,32 +1354,7 @@
                     </div>
                 </div>
                 
-                <!-- Tipos de horarios disponibles -->
-                <div style="background: linear-gradient(135deg, var(--bg-dark), var(--bg-darker)); color: white; padding: 1.5rem; border-radius: 12px; margin-top: 1.5rem;">
-                    <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-info-circle" style="color: var(--success-green);"></i>
-                        Tipos de Horarios Disponibles
-                    </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                        <div>
-                            <strong>Reacondicionamiento (Fijo):</strong><br>
-                            L-J: 7:00 AM - 5:00 PM<br>
-                            Viernes: 7:00 AM - 4:00 PM
-                        </div>
-                        <div>
-                            <strong>Desarme - Mañana:</strong><br>
-                            Todos los días: 6:00 AM - 2:00 PM
-                        </div>
-                        <div>
-                            <strong>Desarme - Tarde:</strong><br>
-                            Todos los días: 2:00 PM - 9:00 PM
-                        </div>
-                        <div>
-                            <strong>Desarme - Noche:</strong><br>
-                            Todos los días: 10:00 PM - 6:00 AM
-                        </div>
-                    </div>
-                </div>
+
             </div>
         </div>
 
@@ -1487,38 +1462,31 @@
                             </button>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Información de Horarios -->
-                <div style="background: linear-gradient(135deg, var(--bg-dark), var(--bg-darker)); color: white; padding: 1.5rem; border-radius: 12px; margin-top: 1.5rem;">
-                    <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-clock" style="color: var(--success-green);"></i>
-                        Horarios de Trabajo
-                    </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                        <div>
-                            <strong>Administrativo:</strong><br>
-                            L-J: 7:00 AM - 5:00 PM<br>
-                            Viernes: 7:00 AM - 4:00 PM
+                    
+                    <!-- Reporte Mensual -->
+                    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-calendar-month" style="color: var(--emerald-primary);"></i>
+                            Reporte Mensual
+                        </h4>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Mes:</label>
+                            <input type="month" id="monthlyReportMonth" class="form-control" style="margin-bottom: 0.75rem;">
                         </div>
-                        <div>
-                            <strong>General:</strong><br>
-                            L-V: 8:00 AM - 5:00 PM
-                        </div>
-                        <div>
-                            <strong>Operativos - Mañana:</strong><br>
-                            Todos los días: 6:00 AM - 2:00 PM
-                        </div>
-                        <div>
-                            <strong>Operativos - Tarde:</strong><br>
-                            Todos los días: 2:00 PM - 9:00 PM
-                        </div>
-                        <div>
-                            <strong>Operativos - Noche:</strong><br>
-                            Todos los días: 10:00 PM - 6:00 AM
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewMonthlyReport()" style="flex: 1;">
+                                <i class="fas fa-eye"></i>
+                                Ver Reporte
+                            </button>
+                            <button class="btn btn-success" onclick="exportMonthlyToExcel()" style="flex: 1;">
+                                <i class="fas fa-file-excel"></i>
+                                Excel
+                            </button>
                         </div>
                     </div>
                 </div>
+                
+
                 
                 <!-- Vista Previa del Reporte -->
                 <div id="reportPreview" style="display: none; margin-top: 2rem;">
@@ -1550,6 +1518,41 @@
                                     </tr>
                                 </thead>
                                 <tbody id="reportTableBody">
+                                    <!-- Datos se cargarán aquí -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Vista Previa del Reporte Mensual -->
+                <div id="monthlyReportPreview" style="display: none; margin-top: 2rem;">
+                    <div style="background: white; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-calendar-month" style="color: var(--emerald-primary);"></i>
+                                Reporte Mensual
+                            </h4>
+                            <button class="btn btn-primary" onclick="hideMonthlyReportPreview()">
+                                <i class="fas fa-times"></i>
+                                Cerrar
+                            </button>
+                        </div>
+                        <div id="monthlyReportSummary" style="margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <!-- Resumen se cargará aquí -->
+                        </div>
+                        <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                            <table id="monthlyReportTable" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead style="background: var(--emerald-primary); color: white; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Empleado</th>
+                                        <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Departamento</th>
+                                        <th style="padding: 0.75rem; text-align: center; border: 1px solid #ddd;">Días Presente</th>
+                                        <th style="padding: 0.75rem; text-align: center; border: 1px solid #ddd;">Días Ausente</th>
+                                        <th style="padding: 0.75rem; text-align: center; border: 1px solid #ddd;">Horas Totales</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monthlyReportTableBody">
                                     <!-- Datos se cargarán aquí -->
                                 </tbody>
                             </table>
@@ -2088,15 +2091,44 @@
             const newActivity = document.createElement('div');
             newActivity.className = `activity-item ${data.event_type}`;
             
-            const iconColor = data.event_type === 'entrada' ? 'var(--success-green)' : 'var(--accent-purple)';
-            const iconName = data.event_type === 'entrada' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
+            let iconColor, iconName, eventDisplay;
+            
+            if (data.event_type === 'entrada') {
+                iconColor = 'var(--success-green)';
+                iconName = 'fa-sign-in-alt';
+                eventDisplay = 'ENTRADA';
+            } else if (data.event_type === 'salida') {
+                iconColor = 'var(--accent-purple)';
+                iconName = 'fa-sign-out-alt';
+                eventDisplay = 'SALIDA';
+            } else if (data.event_type === 'break_salida') {
+                iconColor = 'var(--amber-alert)';
+                iconName = 'fa-coffee';
+                eventDisplay = 'BREAK SALIDA';
+            } else if (data.event_type === 'break_entrada') {
+                iconColor = 'var(--amber-alert)';
+                iconName = 'fa-coffee';
+                eventDisplay = 'BREAK ENTRADA';
+            } else if (data.event_type === 'almuerzo_salida') {
+                iconColor = 'var(--orange-warning)';
+                iconName = 'fa-utensils';
+                eventDisplay = 'ALMUERZO SALIDA';
+            } else if (data.event_type === 'almuerzo_entrada') {
+                iconColor = 'var(--orange-warning)';
+                iconName = 'fa-utensils';
+                eventDisplay = 'ALMUERZO ENTRADA';
+            } else {
+                iconColor = 'var(--primary-blue)';
+                iconName = 'fa-clock';
+                eventDisplay = data.event_type.toUpperCase();
+            }
             
             newActivity.innerHTML = `
                 <div class="activity-icon" style="background: ${iconColor};">
                     <i class="fas ${iconName}"></i>
                 </div>
                 <div class="activity-details">
-                    <div class="activity-name">${data.name} - ${data.event_type.toUpperCase()}</div>
+                    <div class="activity-name">${data.name} - ${eventDisplay}</div>
                     <div class="activity-meta">
                         ${formatColombiaDateTime(data.timestamp)} | ${data.verify_method} | ${data.department}
                     </div>
@@ -2111,10 +2143,11 @@
             }
 
             // Mostrar notificación
-            showNotification(`${data.name} - ${data.event_type.toUpperCase()}`, 'info');
+            showNotification(`${data.name} - ${eventDisplay}`, 'info');
             
-            // Actualizar registro diario
+            // Actualizar registro diario y breaks
             loadDailyAttendance();
+            loadBreakStatus();
         }
 
         function updateCharts(data) {
@@ -2300,7 +2333,63 @@
         setTimeout(() => {
             loadDashboardData();
             loadDailyAttendance();
+            loadBreakStatus();
         }, 1000);
+        
+        function loadBreakStatus() {
+            fetch('/api/breaks/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateBreakStatus(data);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        function updateBreakStatus(data) {
+            if (!data) return;
+            
+            // Actualizar contadores
+            document.getElementById('onBreakCount').textContent = (data.on_break && data.on_break.length) || 0;
+            document.getElementById('breaksCompletedCount').textContent = data.breaks_completed || 0;
+            document.getElementById('breaksPendingCount').textContent = data.breaks_pending || 0;
+            
+            // Actualizar lista de empleados en break
+            const onBreakList = document.getElementById('employeesOnBreakList');
+            if (!data.on_break || data.on_break.length === 0) {
+                onBreakList.innerHTML = `
+                    <div class="employee-item">
+                        <div class="employee-info">
+                            <div class="employee-avatar" style="background: var(--emerald-primary);">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <div>
+                                <div class="employee-name">Sin breaks activos</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                onBreakList.innerHTML = data.on_break.map(emp => {
+                    const duration = emp.duration ? `(${emp.duration} min)` : '';
+                    return `
+                        <div class="employee-item">
+                            <div class="employee-info">
+                                <div class="employee-avatar" style="background: var(--amber-alert);">
+                                    ${emp.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div class="employee-name">${emp.name}</div>
+                                    <div class="employee-time">Break desde ${emp.start_time} ${duration}</div>
+                                </div>
+                            </div>
+                            <div class="status-badge" style="background: var(--amber-alert); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
+                                Break
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
         
         function loadDailyAttendance() {
             const today = new Date().toISOString().split('T')[0];
@@ -2426,16 +2515,16 @@
         
         function updateBreakStatus(data) {
             // Actualizar contadores
-            document.getElementById('onBreakCount').textContent = data.on_break.length;
-            document.getElementById('onLunchCount').textContent = data.on_lunch.length;
-            document.getElementById('breaksCompletedCount').textContent = data.breaks_completed;
-            document.getElementById('breaksPendingCount').textContent = data.breaks_pending;
-            document.getElementById('lunchCompletedCount').textContent = data.lunch_completed;
-            document.getElementById('lunchPendingCount').textContent = data.lunch_pending;
+            document.getElementById('onBreakCount').textContent = data.on_break ? data.on_break.length : 0;
+            document.getElementById('onLunchCount').textContent = data.on_lunch ? data.on_lunch.length : 0;
+            document.getElementById('breaksCompletedCount').textContent = data.breaks_completed || 0;
+            document.getElementById('breaksPendingCount').textContent = data.breaks_pending || 0;
+            document.getElementById('lunchCompletedCount').textContent = data.lunch_completed || 0;
+            document.getElementById('lunchPendingCount').textContent = data.lunch_pending || 0;
             
             // Actualizar lista de empleados en break
             const onBreakList = document.getElementById('employeesOnBreakList');
-            if (data.on_break.length === 0) {
+            if (!data.on_break || data.on_break.length === 0) {
                 onBreakList.innerHTML = `
                     <div class="employee-item">
                         <div class="employee-info">
@@ -2451,6 +2540,7 @@
             } else {
                 onBreakList.innerHTML = data.on_break.map(emp => {
                     const duration = emp.duration ? `(${emp.duration} min)` : '';
+                    const breakTypeDisplay = emp.department === 'Operativos' ? 'Break Operativo' : 'Break Admin';
                     return `
                         <div class="employee-item">
                             <div class="employee-info">
@@ -2459,11 +2549,11 @@
                                 </div>
                                 <div>
                                     <div class="employee-name">${emp.name}</div>
-                                    <div class="employee-time">Break desde ${emp.start_time} ${duration}</div>
+                                    <div class="employee-time">${breakTypeDisplay} desde ${emp.start_time} ${duration}</div>
                                 </div>
                             </div>
                             <div class="status-badge" style="background: var(--amber-alert); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
-                                ${emp.break_type}
+                                Break
                             </div>
                         </div>
                     `;
@@ -2472,7 +2562,7 @@
             
             // Actualizar lista de empleados en almuerzo
             const onLunchList = document.getElementById('employeesOnLunchList');
-            if (data.on_lunch.length === 0) {
+            if (!data.on_lunch || data.on_lunch.length === 0) {
                 onLunchList.innerHTML = `
                     <div class="employee-item">
                         <div class="employee-info">
@@ -2555,6 +2645,15 @@
                     </div>
                 `;
             }).join('');
+        }
+        
+        function loadLateAlerts() {
+            fetch('/api/alerts/late')
+                .then(response => response.json())
+                .then(data => {
+                    updateLateAlerts(data);
+                })
+                .catch(error => console.error('Error:', error));
         }
         
         function showLateArrivalNotification(data) {
@@ -2859,7 +2958,12 @@
         
         function toggleTechnician(employeeId) {
             const card = document.querySelector(`[data-id="${employeeId}"]`);
-            const checkbox = card.querySelector('.tech-checkbox');
+            const checkbox = card ? card.querySelector('.tech-checkbox') : null;
+            
+            if (!checkbox) {
+                console.warn('Checkbox not found for employee:', employeeId);
+                return;
+            }
             
             checkbox.checked = !checkbox.checked;
             
@@ -3155,6 +3259,7 @@
         // Establecer fechas por defecto para exportación
         const today = new Date().toISOString().split('T')[0];
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
         
         document.getElementById('exportStartDate').value = weekAgo;
         document.getElementById('exportEndDate').value = today;
@@ -3162,6 +3267,7 @@
         document.getElementById('exportEmpEndDate').value = today;
         document.getElementById('exportDeptStartDate').value = weekAgo;
         document.getElementById('exportDeptEndDate').value = today;
+        document.getElementById('monthlyReportMonth').value = currentMonth;
         
         // Cargar empleados para el selector
         loadEmployeesForExport();
@@ -3401,6 +3507,138 @@
             }
             
             window.open(url, '_blank');
+        }
+        
+        // Funciones para reporte mensual
+        function viewMonthlyReport() {
+            const month = document.getElementById('monthlyReportMonth').value;
+            
+            if (!month) {
+                showWarning('Mes Requerido', 'Por favor selecciona un mes para generar el reporte');
+                return;
+            }
+            
+            showLoading('Generando reporte mensual...');
+            
+            fetch(`/api/reports/monthly-summary?month=${month}`)
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.error) {
+                        showError('Error en el Reporte', data.error);
+                        return;
+                    }
+                    displayMonthlyReportTable(data);
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error:', error);
+                    showError('Error de Conexión', 'No se pudo cargar el reporte mensual.');
+                });
+        }
+        
+        function displayMonthlyReportTable(data) {
+            const tbody = document.getElementById('monthlyReportTableBody');
+            const summary = document.getElementById('monthlyReportSummary');
+            
+            // Mostrar resumen
+            summary.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--emerald-primary);">${data.totals.total_employees}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-tertiary);">Total Empleados</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--teal-secondary);">${data.work_days}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-tertiary);">Días Laborables</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--green-natural);">${data.totals.total_hours.toFixed(1)}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-tertiary);">Horas Totales</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--lime-accent);">${data.totals.avg_days_present}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-tertiary);">Promedio Días Presente</div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; text-align: center; color: var(--text-secondary);">
+                    <strong>Mes:</strong> ${data.month} | <strong>Período:</strong> ${data.month}-01 al ${data.month}-${new Date(data.month.split('-')[0], data.month.split('-')[1], 0).getDate()}
+                </div>
+            `;
+            
+            // Limpiar tabla
+            tbody.innerHTML = '';
+            
+            // Llenar tabla
+            data.employees.forEach(emp => {
+                const row = document.createElement('tr');
+                
+                // Determinar color de fila según asistencia
+                let rowClass = '';
+                const attendanceRate = emp.days_present / data.work_days;
+                if (attendanceRate >= 0.95) {
+                    rowClass = 'present-row';
+                } else if (attendanceRate < 0.8) {
+                    rowClass = 'absent-row';
+                } else if (attendanceRate < 0.9) {
+                    rowClass = 'late-row';
+                }
+                
+                row.className = rowClass;
+                
+                row.innerHTML = `
+                    <td style="padding: 0.75rem; border: 1px solid #ddd; font-weight: 600;">${emp.name}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">${emp.department}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd; text-align: center; font-weight: 600; color: var(--emerald-primary);">${emp.days_present}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd; text-align: center; font-weight: 600; color: ${emp.days_absent > 0 ? 'var(--orange-warning)' : 'var(--text-tertiary)'};">${emp.days_absent}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd; text-align: center; font-weight: 600; color: var(--teal-secondary);">${emp.total_hours.toFixed(1)}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            // Mostrar el reporte
+            document.getElementById('monthlyReportPreview').style.display = 'block';
+            document.getElementById('monthlyReportPreview').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function hideMonthlyReportPreview() {
+            document.getElementById('monthlyReportPreview').style.display = 'none';
+        }
+        
+        function exportMonthlyToExcel() {
+            const month = document.getElementById('monthlyReportMonth').value;
+            
+            if (!month) {
+                showWarning('Mes Requerido', 'Por favor selecciona un mes para exportar');
+                return;
+            }
+            
+            // Crear tabla temporal para exportar
+            const table = document.getElementById('monthlyReportTable').cloneNode(true);
+            const blob = new Blob([`
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Reporte Mensual ${month}</title>
+                </head>
+                <body>
+                    <h2>Reporte Mensual de Asistencia - ${month}</h2>
+                    ${table.outerHTML}
+                </body>
+                </html>
+            `], { type: 'application/vnd.ms-excel' });
+            
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte_mensual_${month}.xls`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showSuccess('Exportación Exitosa', `Reporte mensual de ${month} exportado correctamente`);
         }
     </script>
 </body>
