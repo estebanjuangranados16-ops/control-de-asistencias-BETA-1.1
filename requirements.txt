@@ -1,0 +1,10 @@
+flask==2.3.3
+flask-socketio==5.3.6
+flask-cors==4.0.0
+requests==2.31.0
+python-dotenv==1.0.0
+psycopg2-binary==2.9.7
+openpyxl==3.1.2
+reportlab==4.0.4
+python-engineio==4.7.1
+python-socketio==5.9.0

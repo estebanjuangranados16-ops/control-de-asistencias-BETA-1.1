@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Simple - PCSHEK</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-box { background: #007bff; color: white; padding: 20px; border-radius: 8px; text-align: center; }
+        .stat-number { font-size: 2em; font-weight: bold; }
+        .employee-list { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .employee-item { padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; margin: 5px 0; }
+        .inside { border-left-color: #28a745; }
+        .outside { border-left-color: #dc3545; }
+        .notification { position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 15px; border-radius: 8px; z-index: 1000; display: none; }
+        .loading { text-align: center; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 Dashboard PCSHEK - Control de Asistencia</h1>
+        
+        <div class="card">
+            <h2>📊 Estadísticas del Día</h2>
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-number" id="total-records">-</div>
+                    <div>Registros Totales</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="unique-employees">-</div>
+                    <div>Empleados Activos</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="inside-count">-</div>
+                    <div>Empleados Dentro</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="outside-count">-</div>
+                    <div>Empleados Fuera</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>👥 Estado de Empleados</h2>
+            <div class="employee-list">
+                <div>
+                    <h3>🏢 Dentro del Edificio</h3>
+                    <div id="employees-inside" class="loading">Cargando...</div>
+                </div>
+                <div>
+                    <h3>🚪 Fuera del Edificio</h3>
+                    <div id="employees-outside" class="loading">Cargando...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📝 Registros Recientes</h2>
+            <div id="recent-records" class="loading">Cargando...</div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        
+        // Función para cargar datos del dashboard
+        function loadDashboard() {
+            fetch('/api/dashboard')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Datos recibidos:', data);
+                    updateUI(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('Error cargando datos');
+                });
+        }
+
+        // Función para actualizar la UI
+        function updateUI(data) {
+            // Actualizar estadísticas
+            document.getElementById('total-records').textContent = data.total_records || 0;
+            document.getElementById('unique-employees').textContent = data.unique_employees || 0;
+            document.getElementById('inside-count').textContent = (data.employees_inside || []).length;
+            document.getElementById('outside-count').textContent = (data.employees_outside || []).length;
+
+            // Actualizar empleados dentro
+            const insideContainer = document.getElementById('employees-inside');
+            const insideList = data.employees_inside || [];
+            if (insideList.length === 0) {
+                insideContainer.innerHTML = '<div class="loading">No hay empleados dentro</div>';
+            } else {
+                insideContainer.innerHTML = insideList.map(emp => 
+                    `<div class="employee-item inside">
+                        <strong>${emp.name}</strong>
+                        ${emp.time ? `<small> - ${new Date(emp.time).toLocaleTimeString()}</small>` : ''}
+                    </div>`
+                ).join('');
+            }
+
+            // Actualizar empleados fuera
+            const outsideContainer = document.getElementById('employees-outside');
+            const outsideList = data.employees_outside || [];
+            if (outsideList.length === 0) {
+                outsideContainer.innerHTML = '<div class="loading">Todos los empleados están dentro</div>';
+            } else {
+                outsideContainer.innerHTML = outsideList.map(emp => 
+                    `<div class="employee-item outside">
+                        <strong>${emp.name}</strong>
+                        ${emp.time ? `<small> - ${new Date(emp.time).toLocaleTimeString()}</small>` : ''}
+                    </div>`
+                ).join('');
+            }
+
+            // Actualizar registros recientes
+            const recordsContainer = document.getElementById('recent-records');
+            const records = data.recent_records || [];
+            if (records.length === 0) {
+                recordsContainer.innerHTML = '<div class="loading">No hay registros recientes</div>';
+            } else {
+                recordsContainer.innerHTML = records.slice(0, 10).map(record => 
+                    `<div class="employee-item">
+                        <strong>${record[0]}</strong> - ${record[1].toUpperCase()}
+                        <small> - ${new Date(record[2]).toLocaleString()}</small>
+                    </div>`
+                ).join('');
+            }
+        }
+
+        // Función para mostrar notificaciones
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+
+        // Función para mostrar errores
+        function showError(message) {
+            console.error(message);
+            showNotification('❌ ' + message);
+        }
+
+        // Inicializar WebSocket
+        function initWebSocket() {
+            try {
+                socket = io();
+                
+                socket.on('connect', () => {
+                    console.log('✅ Conectado al servidor');
+                    showNotification('✅ Conectado al servidor PCSHEK');
+                });
+
+                socket.on('new_record', (data) => {
+                    console.log('Nuevo registro:', data);
+                    showNotification(`🔔 ${data.name} - ${data.event_type.toUpperCase()}`);
+                    // Recargar datos después de 1 segundo
+                    setTimeout(loadDashboard, 1000);
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('❌ Desconectado del servidor');
+                    showNotification('❌ Desconectado del servidor');
+                });
+
+            } catch (error) {
+                console.error('Error WebSocket:', error);
+                showError('Error de conexión WebSocket');
+            }
+        }
+
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Iniciando dashboard...');
+            loadDashboard();
+            initWebSocket();
+            
+            // Actualizar cada 10 segundos
+            setInterval(loadDashboard, 10000);
+        });
+    </script>
+</body>
+</html>

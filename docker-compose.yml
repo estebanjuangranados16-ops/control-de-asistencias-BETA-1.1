@@ -1,0 +1,68 @@
+# Docker Compose para Sistema de Asistencia
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: attendance_db
+      POSTGRES_USER: attendance_user
+      POSTGRES_PASSWORD: attendance_pass_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U attendance_user -d attendance_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Cache Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # Aplicación principal
+  app:
+    build: .
+    environment:
+      - DATABASE_URL=postgresql://attendance_user:attendance_pass_2024@postgres:5432/attendance_db
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_ENV=production
+      - DEVICE_IP=172.10.1.62
+      - DEVICE_USER=admin
+      - DEVICE_PASS=PC2024*+
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+      - ./templates:/app/templates
+      - ./static:/app/static
+    restart: unless-stopped
+
+  # Frontend React (opcional)
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_WS_URL=ws://localhost:5000
+    depends_on:
+      - app
+
+volumes:
+  postgres_data:
+  redis_data:
