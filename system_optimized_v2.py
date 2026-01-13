@@ -398,15 +398,41 @@ class OptimizedAttendanceSystem:
             
             print(f"REGISTRO: {employee[0]} - {event_type.upper()} - {local_timestamp}")
             
-            # NOTIFICACIÓN SIMPLE
+            # 🚀 NOTIFICACIONES INSTANTÁNEAS MEJORADAS
             try:
-                socketio.emit('new_record', {
+                # Notificación principal con todos los datos
+                notification_data = {
+                    'employee_id': employee_id,
                     'name': employee[0],
                     'event_type': event_type,
                     'timestamp': local_timestamp,
-                    'department': employee[1] or 'General'
-                }, broadcast=True)
-                print(f"✅ Notificación: {employee[0]} - {event_type}")
+                    'department': employee[1] or 'General',
+                    'is_break': is_break,
+                    'is_lunch': is_lunch,
+                    'break_type': break_type,
+                    'real_time': True
+                }
+                
+                # Emitir múltiples eventos para diferentes componentes
+                socketio.emit('instant_notification', notification_data)
+                socketio.emit('new_record', notification_data)
+                socketio.emit('attendance_update', notification_data)
+                
+                # Actualización rápida de contadores
+                socketio.emit('counter_update', {
+                    'type': 'increment',
+                    'employee_name': employee[0],
+                    'timestamp': local_timestamp
+                })
+                
+                print(f"🔔 NOTIFICACIÓN INSTANTÁNEA: {employee[0]} - {event_type.upper()}")
+                
+                # Enviar notificación push
+                self.send_push_notification(employee[0], event_type, local_timestamp, employee[1] or 'General')
+                
+                # Enviar notificación push
+                self.send_push_notification(employee[0], event_type, local_timestamp, employee[1] or 'General')
+                
             except Exception as e:
                 print(f"❌ Error notificación: {e}")
             
@@ -420,6 +446,66 @@ class OptimizedAttendanceSystem:
             elif is_lunch:
                 lunch_display = 'SALIDA A ALMUERZO' if event_type == 'almuerzo_salida' else 'REGRESO DE ALMUERZO'
                 print(f"ALMUERZO: {lunch_display}")
+            
+            # Emitir eventos WebSocket optimizados
+            try:
+                # Evento principal de asistencia
+                socketio.emit('attendance_record', {
+                    'employee_id': employee_id,
+                    'name': employee[0],
+                    'event_type': event_type,
+                    'timestamp': local_timestamp,
+                    'verify_method': verify_method,
+                    'department': employee[1] or 'General',
+                    'schedule': employee[2] or 'estandar',
+                    'real_time': True,
+                    'is_break': is_break,
+                    'is_lunch': is_lunch,
+                    'break_type': break_type
+                })
+                
+                # Evento de actualización rápida
+                socketio.emit('quick_update', {
+                    'type': 'new_record',
+                    'employee_name': employee[0],
+                    'event_type': event_type,
+                    'timestamp': local_timestamp
+                })
+                
+                print(f"📡 Eventos WebSocket enviados para {employee[0]}")
+                
+            except Exception as e:
+                print(f"❌ Error enviando eventos WebSocket: {e}")
+            
+            # Emitir eventos WebSocket optimizados
+            try:
+                # Evento principal de asistencia
+                socketio.emit('attendance_record', {
+                    'employee_id': employee_id,
+                    'name': employee[0],
+                    'event_type': event_type,
+                    'timestamp': local_timestamp,
+                    'verify_method': verify_method,
+                    'department': employee[1] or 'General',
+                    'schedule': employee[2] or 'estandar',
+                    'real_time': True,
+                    'is_break': is_break,
+                    'is_lunch': is_lunch,
+                    'break_type': break_type
+                })
+                
+                # Evento de actualización rápida
+                socketio.emit('quick_update', {
+                    'type': 'new_record',
+                    'employee_name': employee[0],
+                    'event_type': event_type,
+                    'timestamp': local_timestamp
+                })
+                
+                print(f"📡 Eventos WebSocket enviados para {employee[0]}")
+                
+            except Exception as e:
+                print(f"❌ Error enviando eventos WebSocket: {e}")
             
             # Emitir evento WebSocket inmediatamente
             socketio.emit('attendance_record', {
@@ -1597,6 +1683,46 @@ class OptimizedAttendanceSystem:
                 'message': str(e)
             }
     
+
+    def send_push_notification(self, employee_name, event_type, timestamp, department):
+        """Enviar notificación push optimizada"""
+        try:
+            notification_data = {
+                'title': f'{employee_name} - {event_type.upper()}',
+                'message': f'{department} - {timestamp}',
+                'timestamp': timestamp,
+                'type': event_type,
+                'employee': employee_name,
+                'department': department
+            }
+            
+            # Emitir notificación
+            socketio.emit('push_notification', notification_data)
+            
+            return True
+        except Exception as e:
+            print(f"Error enviando push notification: {e}")
+            return False
+
+    def send_push_notification(self, employee_name, event_type, timestamp, department):
+        """Enviar notificación push optimizada"""
+        try:
+            notification_data = {
+                'title': f'{employee_name} - {event_type.upper()}',
+                'message': f'{department} - {timestamp}',
+                'timestamp': timestamp,
+                'type': event_type,
+                'employee': employee_name,
+                'department': department
+            }
+            
+            # Emitir notificación
+            socketio.emit('push_notification', notification_data)
+            
+            return True
+        except Exception as e:
+            print(f"Error enviando push notification: {e}")
+            return False
     def start_monitoring(self):
         """Iniciar monitoreo"""
         if not self.monitoring:
@@ -1611,8 +1737,11 @@ class OptimizedAttendanceSystem:
         print("Monitoreo detenido")
     
     def _monitor_events(self):
-        """Monitoreo de eventos del dispositivo"""
+        """Monitoreo optimizado de eventos del dispositivo"""
         url = f"http://{self.device_ip}/ISAPI/Event/notification/alertStream"
+        
+        # Configurar timeout más agresivo
+        self.session.timeout = 30
         
         while self.monitoring:
             try:
@@ -1674,24 +1803,83 @@ class OptimizedAttendanceSystem:
                 time_module.sleep(5)
     
     def _process_event(self, event):
-        """Procesar eventos del dispositivo"""
-        if 'AccessControllerEvent' in event:
-            acs_event = event['AccessControllerEvent']
-            sub_type = acs_event.get('subEventType')
-            
-            if sub_type == 38:  # Acceso autorizado
-                employee_id = acs_event.get('employeeNoString')
-                timestamp = event.get('dateTime', datetime.now().isoformat())
-                reader_no = acs_event.get('cardReaderNo', 1)
-                verify_method = 'huella'  # Simplificado
+        """Procesar eventos del dispositivo de forma ultra rápida"""
+        try:
+            if 'AccessControllerEvent' in event:
+                acs_event = event['AccessControllerEvent']
+                sub_type = acs_event.get('subEventType')
                 
-                if employee_id:
-                    self.record_attendance(employee_id, timestamp, reader_no, verify_method)
+                if sub_type == 38:  # Acceso autorizado
+                    employee_id = acs_event.get('employeeNoString')
+                    
+                    if employee_id:
+                        # Procesar inmediatamente en hilo separado
+                        import threading
+                        
+                        def process_attendance():
+                            try:
+                                timestamp = datetime.now().isoformat()
+                                self.record_attendance(employee_id, timestamp, 1, 'huella')
+                                
+                                # Emitir evento de procesamiento exitoso
+                                socketio.emit('event_processed', {
+                                    'employee_id': employee_id,
+                                    'timestamp': timestamp,
+                                    'success': True
+                                })
+                                
+                            except Exception as e:
+                                print(f"❌ Error procesando asistencia: {e}")
+                                socketio.emit('event_processed', {
+                                    'employee_id': employee_id,
+                                    'success': False,
+                                    'error': str(e)
+                                })
+                        
+                        # Ejecutar en hilo separado para no bloquear
+                        thread = threading.Thread(target=process_attendance, daemon=True)
+                        thread.start()
+                        
+                        print(f"⚡ EVENTO RECIBIDO: {employee_id}")
+                        
+        except Exception as e:
+            print(f"❌ Error procesando evento: {e}")
 
 # Instancia global
 system = OptimizedAttendanceSystem()
 
-# WebSocket events
+
+# 🚀 WEBSOCKET EVENTS MEJORADOS
+@socketio.on('connect')
+def handle_connect():
+    print('🔌 Cliente conectado')
+    emit('connection_status', {
+        'connected': system.connected,
+        'monitoring': system.monitoring,
+        'timestamp': datetime.now().isoformat(),
+        'message': 'Conectado al sistema PCSHEK'
+    })
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('🔌 Cliente desconectado')
+
+@socketio.on('request_update')
+def handle_request_update():
+    """Cliente solicita actualización inmediata"""
+    try:
+        dashboard_data = system.get_dashboard_data()
+        emit('dashboard_update', dashboard_data)
+        emit('update_complete', {'success': True, 'timestamp': datetime.now().isoformat()})
+    except Exception as e:
+        emit('update_complete', {'success': False, 'error': str(e)})
+
+@socketio.on('ping')
+def handle_ping():
+    """Mantener conexión activa"""
+    emit('pong', {'timestamp': datetime.now().isoformat()})
+
+# WebSocket events originales
 @socketio.on('connect')
 def handle_connect():
     print('Cliente conectado')
@@ -1718,10 +1906,96 @@ def employees_simple():
 def api_force_update():
     try:
         dashboard_data = system.get_dashboard_data()
-        socketio.emit('dashboard_refresh', dashboard_data, broadcast=True)
+        socketio.emit('dashboard_refresh', dashboard_data)
         return jsonify({'success': True, 'message': 'Dashboard actualizado'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/quick_dashboard')
+def api_quick_dashboard():
+    """Dashboard ultra rápido - solo datos esenciales"""
+    try:
+        conn = system.get_connection()
+        cursor = conn.cursor()
+        
+        if system.db_type == 'postgresql':
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE DATE(timestamp) = CURRENT_DATE")
+            total_records = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(DISTINCT employee_id) FROM attendance_records WHERE DATE(timestamp) = CURRENT_DATE")
+            unique_employees = cursor.fetchone()[0]
+        else:
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE date(timestamp) = date('now')")
+            total_records = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(DISTINCT employee_id) FROM attendance_records WHERE date(timestamp) = date('now')")
+            unique_employees = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'total_records': total_records,
+            'unique_employees': unique_employees,
+            'connected': system.connected,
+            'monitoring': system.monitoring,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'total_records': 0,
+            'unique_employees': 0,
+            'connected': False,
+            'monitoring': False,
+            'error': str(e)
+        })
+
+@app.route('/api/instant_status')
+def api_instant_status():
+    """Estado instantáneo del sistema"""
+    return jsonify({
+        'connected': system.connected,
+        'monitoring': system.monitoring,
+        'timestamp': datetime.now().isoformat(),
+        'status': 'active' if system.monitoring else 'inactive',
+        'device_ip': system.device_ip
+    })
+
+@app.route('/api/live_feed')
+def api_live_feed():
+    """Feed en vivo de los últimos 5 registros"""
+    try:
+        conn = system.get_connection()
+        cursor = conn.cursor()
+        
+        if system.db_type == 'postgresql':
+            cursor.execute('''
+                SELECT e.name, ar.event_type, ar.timestamp, e.department
+                FROM attendance_records ar
+                JOIN employees e ON ar.employee_id = e.employee_id
+                WHERE e.active = true
+                ORDER BY ar.timestamp DESC LIMIT 5
+            ''')
+        else:
+            cursor.execute('''
+                SELECT e.name, ar.event_type, ar.timestamp, e.department
+                FROM attendance_records ar
+                JOIN employees e ON ar.employee_id = e.employee_id
+                WHERE e.active = 1
+                ORDER BY ar.timestamp DESC LIMIT 5
+            ''')
+        
+        records = cursor.fetchall()
+        conn.close()
+        
+        return jsonify([{
+            'name': record[0],
+            'event_type': record[1],
+            'timestamp': record[2],
+            'department': record[3]
+        } for record in records])
+        
+    except Exception as e:
+        return jsonify([])
 
 @app.route('/api/dashboard')
 def api_dashboard():
